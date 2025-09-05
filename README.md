@@ -74,7 +74,7 @@ This Tool returns `data` in the following format
 | -------------- | ------------ | ----------------------------------------- |
 | `withHeadings` | `boolean`    | Uses the first line as headings |
 | `stretched`    | `boolean`    | whether the table is stretched to fill the full width of the container |
-| `content`      | `string[][]` | two-dimensional array with table contents |
+| `content`      | `object[][]` | two-dimensional array with table contents |
 
 ```json
 {
@@ -82,7 +82,11 @@ This Tool returns `data` in the following format
   "data" : {
     "withHeadings": true,
     "stretched": false,
-    "content" : [ [ "Kine", "Pigs", "Chicken" ], [ "1 pcs", "3 pcs", "12 pcs" ], [ "100$", "200$", "150$" ] ]
+    "content": [
+      [ { "text": "A1", "rowspan": 2, "colspan": 1 }, { "text": "B1" } ],
+      [ { "text": "A2" }, { "text": "B2" } ],
+      [ { "text": "A3" }, { "text": "B3" }, ]
+    ],
   }
 }
 ```

@@ -349,8 +349,9 @@ export default class Table {
    */
   setCellContent(row, column, content) {
     const cell = this.getCell(row, column);
-
-    cell.innerHTML = content;
+    cell.colSpan = content?.colspan ?? 1;
+    cell.rowSpan = content?.rowspan ?? 1;
+    cell.innerHTML = content?.text ?? content;
   }
 
   /**
@@ -413,7 +414,7 @@ export default class Table {
    */
   addRow(index = -1, setFocus = false) {
     let insertedRow;
-    let rowElem = $.make('div', CSS.row);
+    let rowElem = $.make('tr', CSS.row);
 
     if (this.tunes.withHeadings) {
       this.removeHeadingAttrFromFirstRow();
@@ -503,8 +504,8 @@ export default class Table {
    * @returns {HTMLElement} wrapper - where all buttons for a table and the table itself will be
    */
   createTableWrapper() {
-    this.wrapper = $.make('div', CSS.wrapper);
-    this.table = $.make('div', CSS.table);
+    this.wrapper = $.make('table', CSS.wrapper);
+    this.table = $.make('tbody', CSS.table);
 
     if (this.readOnly) {
       this.wrapper.classList.add(CSS.wrapperReadOnly);
@@ -611,7 +612,9 @@ export default class Table {
    * @return {Element}
    */
   createCell() {
-    return $.make('div', CSS.cell, {
+    return $.make('td', CSS.cell, {
+      colSpan: 1,
+      rowSpan: 1,
       contentEditable: !this.readOnly
     });
   }
@@ -995,8 +998,13 @@ export default class Table {
       if (isEmptyRow) {
         continue;
       }
-
-      data.push(cells.map(cell => cell.innerHTML));
+      
+      data.push(cells.map(cell => ({
+          text: cell.innerHTML ?? '',
+          colspan: cell.colSpan ?? 1,
+          rowspan: cell.rowSpan ?? 1,
+        
+      })));
     }
 
     return data;
