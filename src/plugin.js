@@ -63,7 +63,6 @@ export default class TableBlock {
     this.readOnly = readOnly;
     this.config = config;
     this.data = {
-      stretched: this.getConfig('stretched', false, data),
       content: data && data.content ? data.content : []
     };
     this.table = null;
@@ -106,18 +105,7 @@ export default class TableBlock {
    * @returns {Array}
    */
   renderSettings() {
-    return [
-      {
-        label: this.data.stretched ? this.api.i18n.t('Collapse') : this.api.i18n.t('Stretch'),
-        icon: this.data.stretched ? IconCollapse : IconStretch,
-        closeOnActivate: true,
-        toggle: true,
-        onActivate: () => {
-          this.data.stretched = !this.data.stretched;
-          this.block.stretched = this.data.stretched;
-        }
-      }
-    ];
+    return [];
   }
   /**
    * Extract table data from the view
@@ -128,7 +116,6 @@ export default class TableBlock {
     const tableContent = this.table.getData();
 
     const result = {
-      stretched: this.data.stretched,
       content: tableContent
     };
 

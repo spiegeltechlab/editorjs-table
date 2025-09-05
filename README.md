@@ -63,7 +63,6 @@ var editor = EditorJS({
 | `cols`             | `number` | initial number of columns. `2` by default |
 | `maxRows`          | `number` | maximum number of rows. `5` by params |
 | `maxCols`          | `number` | maximum number of columns. `5` by params |
-| `stretched`        | `boolean` | whether the table is stretched to fill the full width of the container |
 
 ## Output data
 
@@ -71,14 +70,12 @@ This Tool returns `data` in the following format
 
 | Field          | Type         | Description           |
 | -------------- | ------------ | ----------------------------------------- |
-| `stretched`    | `boolean`    | whether the table is stretched to fill the full width of the container |
 | `content`      | `object[][]` | two-dimensional array with table contents |
 
 ```json
 {
   "type" : "table",
   "data" : {
-    "stretched": false,
     "content": [
       [ { "text": "A1", "rowspan": 2, "colspan": 1 }, { "text": "B1" } ],
       [ { "text": "A2" }, { "text": "B2" } ],
