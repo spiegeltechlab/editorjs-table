@@ -80,6 +80,9 @@ export default class Table {
     // Current hovered column index
     this.hoveredColumn = 0;
 
+    // Boolean indicating whether cells are currently being selected
+    this.isSelectingCells = false;
+
     // Index of last selected row via toolbox
     this.selectedRow = 0;
 
@@ -105,6 +108,13 @@ export default class Table {
       column: 0
     };
 
+    /**
+     * Global double click listener allows to delegate clicks on some elements
+     */
+    this.doubleDocumentClicked = () => {
+      this.removeSelectedCellStyle();
+    }
+  
     /**
      * Global click listener allows to delegate clicks on some elements
      */
@@ -153,6 +163,9 @@ export default class Table {
     // set the listener to close toolboxes when click outside
     document.addEventListener('click', this.documentClicked);
 
+    // set the listener to remove the selected cells on double click
+    document.addEventListener('dblclick', this.doubleDocumentClicked);
+
     // Update toolboxes position depending on the mouse movements
     this.table.addEventListener('mousemove', throttled(150, (event) => this.onMouseMoveInTable(event)), { passive: true });
 
@@ -164,6 +177,12 @@ export default class Table {
 
     // Determine the position of the cell in focus
     this.table.addEventListener('focusin', event => this.focusInTableListener(event));
+
+    // Start selecting cells (e.g., for multi-cell operations
+    this.table.addEventListener('mousedown', event => this.onMouseDownListener(event));
+
+    // Stop selecting cells
+    this.table.addEventListener('mouseup', event => this.onMouseUpListener(event));
   }
 
   /**
@@ -638,6 +657,39 @@ export default class Table {
   }
 
   /**
+   * Start selecting cells (e.g., for multi-cell operations)
+   */
+  onMouseDownListener() {
+    this.isSelectingCells = true;
+  }
+
+  /**
+   * Stop selecting cells
+   */
+  onMouseUpListener() {
+    this.isSelectingCells = false;
+  }
+
+  /**
+   * Add the 'cell--selected' class to a cell if selection mode is active
+   * 
+   * @param {HTMLElement} element - The cell element to mark as selected
+   */
+  addSelectedCellStyle(element) {
+    if (!this.isSelectingCells || !element) {
+      return;
+    }
+    element.classList.add('cell--selected');
+  }
+
+  /**
+   * Remove the 'cell--selected' class from all cells, but only if selection mode is not active
+   */
+  removeSelectedCellStyle() {
+    this.table?.querySelectorAll('.cell--selected').forEach(el => el.classList.remove('cell--selected'));
+  }
+
+  /**
    * Recalculate position of toolbox icons
    *
    * @param {Event} event - mouse move event
@@ -648,6 +700,7 @@ export default class Table {
     this.hoveredColumn = column;
     this.hoveredRow = row;
 
+    this.addSelectedCellStyle(event.target);
     this.updateToolboxesPosition();
   }
 
@@ -954,5 +1007,6 @@ export default class Table {
    */
   destroy() {
     document.removeEventListener('click', this.documentClicked);
+    document.removeEventListener('dblclick', this.doubleDocumentClicked);
   }
 }
