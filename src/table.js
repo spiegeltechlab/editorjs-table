@@ -54,7 +54,8 @@ export default class Table {
   constructor(readOnly, api, data, config) {
     this.readOnly = readOnly;
     this.api = api;
-    this.data = data;
+    const cleanedArray = data.content.map(innerArray => innerArray.filter(item => item !== null));
+    this.data = { content: cleanedArray };
     this.config = config;
 
     /**
@@ -363,7 +364,7 @@ export default class Table {
     const cell = this.getCell(row, column);
     cell.colSpan = content?.colspan ?? 1;
     cell.rowSpan = content?.rowspan ?? 1;
-    cell.innerHTML = content?.text ?? content;
+    cell.innerHTML = content?.text ?? '';
   }
 
   /**
@@ -373,7 +374,7 @@ export default class Table {
    * @param {number} columnIndex - number in the array of columns, where new column to insert, -1 if insert at the end
    * @param {boolean} [setFocus] - pass true to focus the first cell
    */
-  addColumn(columnIndex = -1, setFocus = false) {
+  addColumn(columnIndex = -1, setFocus = false, colIndex) {
     let numberOfColumns = this.numberOfColumns;
      /**
       * Check if the number of columns has reached the maximum allowed columns specified in the configuration,
@@ -382,11 +383,14 @@ export default class Table {
     if (this.config && this.config.maxcols && this.numberOfColumns >= this.config.maxcols) {
       return;
   }
-
     /**
      * Iterate all rows and add a new cell to them for creating a column
      */
     for (let rowIndex = 1; rowIndex <= this.numberOfRows; rowIndex++) {
+      if (colIndex && !this.data.content?.[rowIndex-1]?.[colIndex]) {
+        continue;
+      }
+
       let cell;
       const cellElem = this.createCell();
 
@@ -539,7 +543,7 @@ export default class Table {
     const isValidArray = Array.isArray(content);
     const isNotEmptyArray = isValidArray ? content.length : false;
     const contentRows = isValidArray ? content.length : undefined;
-    const contentCols = isNotEmptyArray ? content[0].length : undefined;
+    const contentCols = isNotEmptyArray ?  Math.max(...content.map(c => c.length)) : undefined;
     const parsedRows = Number.parseInt(this.config && this.config.rows);
     const parsedCols = Number.parseInt(this.config && this.config.cols);
 
@@ -572,7 +576,7 @@ export default class Table {
     }
 
     for (let i = 0; i < cols; i++) {
-      this.addColumn();
+      this.addColumn(undefined, false, i);
     }
   }
 
@@ -675,11 +679,11 @@ export default class Table {
    * 
    * @param {HTMLElement} element - The cell element to mark as selected
    */
-  addSelectedCellStyle(element) {
-    if (!this.isSelectingCells || !element) {
+  addSelectedCellStyle(event) {
+    if (!this.isSelectingCells) {
       return;
     }
-    element.classList.add('cell--selected');
+    event.target.classList.add('cell--selected');
   }
 
   /**
@@ -700,7 +704,7 @@ export default class Table {
     this.hoveredColumn = column;
     this.hoveredRow = row;
 
-    this.addSelectedCellStyle(event.target);
+    this.addSelectedCellStyle(event);
     this.updateToolboxesPosition();
   }
 
