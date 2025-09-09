@@ -867,9 +867,43 @@ export default class Table {
     if (withHeadings) {
       this.table.classList.add(CSS.withHeadings);
       this.addHeadingAttrToFirstRow();
+      this.convertTabelRowToTableHead();
     } else {
       this.table.classList.remove(CSS.withHeadings);
       this.removeHeadingAttrFromFirstRow();
+      this.convertTabelHeadToTableRow();
+    }
+  }
+
+  convertTabelRowToTableHead() {
+    for (let cellIndex = 1; cellIndex <= this.numberOfColumns; cellIndex++) {
+      let tdCell = this.getCell(1, cellIndex);
+      if (tdCell.tagName !== "TD") {
+        return;
+      }
+
+      const thCell = document.createElement("th");
+      thCell.innerHTML = tdCell.innerHTML;
+      for (const attr of tdCell.attributes) {
+        thCell.setAttribute(attr.name, attr.value);
+      }
+      tdCell.parentNode.replaceChild(thCell, tdCell);
+    }
+  }
+
+  convertTabelHeadToTableRow() {
+    for (let cellIndex = 1; cellIndex <= this.numberOfColumns; cellIndex++) {
+      let thCell = this.getCell(1, cellIndex);
+
+      if (thCell.tagName !== "TH") {
+        return;
+      }
+      const tdCell = document.createElement("td");
+      tdCell.innerHTML = thCell.innerHTML;
+      for (const attr of thCell.attributes) {
+        tdCell.setAttribute(attr.name, attr.value);
+      }
+      thCell.parentNode.replaceChild(tdCell, thCell);
     }
   }
 
