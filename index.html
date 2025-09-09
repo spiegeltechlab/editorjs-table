@@ -59,13 +59,57 @@
         time: 1625072989362,
         blocks: [
           {
+            id: "aXVTfnMlcE",
+            type: "paragraph",
+            data: {
+              text: 'DEFAULT TABELLE:'
+            }
+          },
+          {
             id: "XXVTfnMlcE",
             type: "table",
             data: {
               content: [
-                [ { text: "A1", rowspan: 1, colspan: 1 }, null ],
-                [ { text: "A2", rowspan: 1, colspan: 1 }, { text: "B2", rowspan: 1, colspan: 1 } ],
-                [ { text: "A3" }, { text: "B3" }, ]
+                [ { text: "A1", rowspan: 1, colspan: 1 }, { text: "B1" }, ],
+                [ { text: "A2" }, { text: "B2", rowspan: 1, colspan: 1 } ],
+                [ { text: "A3" }, { text: "B3" } ]
+              ],
+            }
+          },
+          {
+            id: "bXVTfnMlcE",
+            type: "paragraph",
+            data: {
+              text: 'COLSPAN TABELLE:'
+            }
+          },
+          {
+            id: "XXVTflMlcE",
+            type: "table",
+            data: {
+              content: [
+                [ { text: "A1 - colspan 2", rowspan: 1, colspan: 2 } ],
+                [ { text: "A2" }, { text: "B2", rowspan: 1, colspan: 1 } ],
+                [ { text: "A3 - colspan 2", rowspan: 1, colspan: 2 } ],
+                [ { text: "A4" }, { text: "B4", rowspan: 1, colspan: 1 } ],
+              ],
+            }
+          },
+          {
+            id: "cXVTfnMlcE",
+            type: "paragraph",
+            data: {
+              text: 'ROWSPAN TABELLE:'
+            }
+          },
+          {
+            id: "XXVTfwMlcE",
+            type: "table",
+            data: {
+              content: [
+                [ { text: "A1 - rowspan 2", rowspan: 2, colspan: 1 }, { text: "B1" }, ],
+                [ { text: "B2", rowspan: 1, colspan: 1 } ],
+                [ { text: "A3" }, { text: "B3" } ]
               ],
             }
           }
