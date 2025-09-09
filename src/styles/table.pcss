@@ -67,6 +67,26 @@
     top: calc(-1 * var(--toolbox-aiming-field-size));
     left: 0;
   }
+
+  &--heading {
+    & .tc-row:first-child {
+      font-weight: 600;
+      border-bottom: 2px solid var(--color-border);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--color-background);
+      & [contenteditable]:empty::before {
+        content: attr(heading);
+        color: var(--color-text-secondary);
+      }
+
+      &::after {
+        bottom: -2px;
+        border-bottom: 2px solid var(--color-border);
+      }
+    }
+  }
 }
 
 .tc-add {
