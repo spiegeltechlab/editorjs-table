@@ -45,7 +45,7 @@
   position: relative;
   width: 100%;
   height: 100%;
-  display: grid;
+  display: table;
   font-size: 14px;
   border-top: 1px solid var(--color-border);
   line-height: 1.4;
@@ -66,6 +66,26 @@
     height: var(--toolbox-aiming-field-size);
     top: calc(-1 * var(--toolbox-aiming-field-size));
     left: 0;
+  }
+
+  &--heading {
+    & .tc-row:first-child {
+      font-weight: 600;
+      border-bottom: 2px solid var(--color-border);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--color-background);
+      & [contenteditable]:empty::before {
+        content: attr(heading);
+        color: var(--color-text-secondary);
+      }
+
+      &::after {
+        bottom: -2px;
+        border-bottom: 2px solid var(--color-border);
+      }
+    }
   }
 }
 
@@ -149,8 +169,7 @@
 }
 
 .tc-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10px, 1fr));
+  display: table-row;
   position: relative;
   border-bottom: 1px solid var(--color-border);
 
@@ -177,8 +196,10 @@
 }
 
 .tc-cell {
-  border-right: 1px solid var(--color-border);
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border);
   padding: 6px 12px 6px 12px;
+  border-right: 1px solid var(--color-border);
   overflow: hidden;
   outline: none;
   line-break: normal;

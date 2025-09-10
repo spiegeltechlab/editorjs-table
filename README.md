@@ -63,6 +63,7 @@ var editor = EditorJS({
 | `cols`             | `number` | initial number of columns. `2` by default |
 | `maxRows`          | `number` | maximum number of rows. `5` by params |
 | `maxCols`          | `number` | maximum number of columns. `5` by params |
+| `withHeadings`     | `boolean` | toggle table headings. `false` by default |
 
 ## Output data
 
@@ -70,12 +71,14 @@ This Tool returns `data` in the following format
 
 | Field          | Type         | Description           |
 | -------------- | ------------ | ----------------------------------------- |
+| `withHeadings` | `boolean`    | Uses the first line as headings |
 | `content`      | `object[][]` | two-dimensional array with table contents |
 
 ```json
 {
   "type" : "table",
   "data" : {
+    "withHeadings": true,
     "content": [
       [ { "text": "A1", "rowspan": 2, "colspan": 1 }, { "text": "B1" } ],
       [ { "text": "A2" }, { "text": "B2" } ],
