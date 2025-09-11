@@ -7,6 +7,7 @@ import {
   IconDirectionRightDown,
   IconDirectionUpRight,
   IconDirectionDownRight,
+  IconCollapse,
   IconCross,
   IconPlus
 } from '@codexteam/icons';
@@ -289,6 +290,17 @@ export default class Table {
           confirmationRequired: true,
           onClick: () => {
             this.deleteRow(this.selectedRow);
+            this.hideToolboxes();
+          }
+        },
+        {
+          label: this.api.i18n.t('Merge cells'),
+          icon: IconCollapse,
+          hideIf: () => {
+            return this.table.querySelectorAll('.cell--selected').length < 2;
+          },
+          onClick: () => {
+            this.mergeSelectedCells();
             this.hideToolboxes();
           }
         }
@@ -1099,6 +1111,121 @@ export default class Table {
     }
 
     return data;
+  }
+
+  /**
+   * Merge all currently selected table cells into a single cell.
+   *
+   * The merged cell will:
+   *  - Contain the combined content of all selected cells (joined with <br>).
+   *  - Expand its rowSpan and colSpan to cover the entire selected rectangle.
+   *  - Hide all other cells that were part of the merge.
+   *
+   * Selection must form a contiguous rectangular block; otherwise, a notification
+   * will be shown and the merge will be cancelled.
+   */
+  mergeSelectedCells() {
+    const selectedCells = Array.from(this.table.querySelectorAll('.cell--selected'));
+    if (selectedCells.length < 2) {
+      return;
+    }
+
+    const rows = this.numberOfRows;
+    const cols = this.numberOfColumns;
+
+    // Initialize the matrix
+    const matrix = Array.from({ length: rows }, () => new Array(cols).fill(null));
+
+    // Fill the matrix with table cells, considering rowSpan and colSpan
+    for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
+      let currentColIndex = 0;
+      const rowElement = this.getRow(rowIndex + 1);
+
+      for (const cellElement of rowElement.querySelectorAll(`.${CSS.cell}`)) {
+        // Skip already filled positions
+        while (matrix[rowIndex][currentColIndex]) {
+          currentColIndex++;
+        }
+
+        const rowSpan = cellElement.rowSpan ?? 1;
+        const colSpan = cellElement.colSpan ?? 1;
+
+        // Fill the matrix positions for this cell
+        for (let spanRow = 0; spanRow < rowSpan; spanRow++) {
+          for (let spanCol = 0; spanCol < colSpan; spanCol++) {
+            matrix[rowIndex + spanRow][currentColIndex + spanCol] = cellElement;
+          }
+        }
+        currentColIndex += colSpan;
+      }
+    }
+
+    // Determine positions of the selected cells
+    const selectedSet = new Set(selectedCells);
+    const selectedPositions = [];
+
+    for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
+      for (let colIndex = 0; colIndex < cols; colIndex++) {
+        if (selectedSet.has(matrix[rowIndex][colIndex])) {
+          selectedPositions.push({ row: rowIndex, col: colIndex });
+        }
+      }
+    }
+
+    // Calculate bounding rectangle of selected cells
+    const minRow = Math.min(...selectedPositions.map(pos => pos.row));
+    const maxRow = Math.max(...selectedPositions.map(pos => pos.row));
+    const minCol = Math.min(...selectedPositions.map(pos => pos.col));
+    const maxCol = Math.max(...selectedPositions.map(pos => pos.col));
+
+    // Validate: check if all cells inside the rectangle are selected or already merged
+    let invalidSelection = false;
+    for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex++) {
+      for (let colIndex = minCol; colIndex <= maxCol; colIndex++) {
+        const cell = matrix[rowIndex][colIndex];
+        if (!cell || (!selectedSet.has(cell) && cell.style.display !== 'none')) {
+          invalidSelection = true;
+          break;
+        }
+      }
+      if (invalidSelection) {
+        break;
+      }
+    }
+
+    if (invalidSelection) {
+      this.api.notifier.show({
+        message: 'Invalid selection: please select a contiguous rectangle.',
+        style: 'error'
+      });
+      return;
+    }
+
+    // Merge the content of all selected cells
+    const mergedContent = Array.from(selectedSet)
+      .map(cellElement => cellElement.innerHTML)
+      .join('<br>');
+
+    // Define the master cell (top-left) and set its new span
+    const masterCell = matrix[minRow][minCol];
+    if (!masterCell) {
+      return;
+    }
+
+    masterCell.innerHTML = mergedContent;
+    masterCell.rowSpan = maxRow - minRow + 1;
+    masterCell.colSpan = maxCol - minCol + 1;
+    masterCell.style.display = '';
+
+    // Clear and hide the other merged cells
+    selectedSet.forEach(cellElement => {
+      if (cellElement !== masterCell) {
+        cellElement.innerHTML = '';
+        cellElement.style.display = 'none';
+        cellElement.rowSpan = 1;
+        cellElement.colSpan = 1;
+      }
+    });
   }
 
   /**
