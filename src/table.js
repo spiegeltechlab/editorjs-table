@@ -1216,7 +1216,6 @@ export default class Table {
     }
 
     // Determine positions of the selected cells
-    //
     // Example table matrix (after filling with rowSpan/colSpan):
     // [
     //   [ A, B, C ],
@@ -1225,8 +1224,6 @@ export default class Table {
     // ]
     //
     // Suppose the user selected cells B, E, and H:
-    //
-    // Visually:
     //   +----+----+----+
     //   | A  | X  | C  |
     //   +----+----+----+
@@ -1266,8 +1263,8 @@ export default class Table {
     // | X  | X  |    |
     // +----+----+----+
     //
-    // → All cells in the 2x2 rectangle are selected.
-    // → Validation passes.
+    // → All cells in the 2x2 rectangle are selected
+    // → Validation passes
     //
     // Example 2: invalid selection (gap inside rectangle)
     // +----+----+----+
@@ -1276,26 +1273,25 @@ export default class Table {
     // | X  | X  |    |
     // +----+----+----+
     //
-    // Bounding rectangle covers a 2x2 area, but top-right cell is missing.
-    // → Validation fails.
+    // Bounding rectangle covers a 2x2 area, but top-right cell is missing
+    // → Validation fails
     //
     // Example 3: valid selection with previously merged cells
-    // (assume top-left 2x2 block was merged already, hidden cells have style.display = 'none')
-    // +---------+----+
-    // |   A     | B  |
-    // | (merged)|    |
-    // +---------+----+
-    // | hidden  | C  |
-    // +----+----+----+
+    // (assume top-left 2x2 block was merged already, hidden cells have 'tc-cell--hidden')
+    // +-------------------+----+
+    // |          A        | B  |
+    // |      (merged)     |    |
+    // +-------------------+----+
+    // |  tc-cell--hidden  | C  |
+    // +----+----+--------------+
     //
     // User selects A and C → rectangle includes hidden cells, but they are ignored
-    // (since cell.style.display === 'none').
-    // → Validation passes.
+    // → Validation passes
     let invalidSelection = false;
     for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex++) {
       for (let colIndex = minCol; colIndex <= maxCol; colIndex++) {
         const cell = matrix[rowIndex][colIndex];
-        if (!cell || (!selectedSet.has(cell) && cell.style.display !== 'none')) {
+        if (!cell || (!selectedSet.has(cell) && !cell.classList.contains('tc-cell--hidden'))) {
           invalidSelection = true;
           break;
         }
@@ -1336,7 +1332,7 @@ export default class Table {
     // | A  |      BCEF       |   <-- masterCell now spans 2x2, contains combined content
     // +----+                 |
     // | D  | tc-cell--hidden |   <-- other cells cleared
-    // +----+---------+
+    // +----+-----------------+
     const masterCell = matrix[minRow][minCol];
     if (!masterCell) {
       return;
@@ -1345,7 +1341,7 @@ export default class Table {
     masterCell.innerHTML = mergedContent;
     masterCell.rowSpan = maxRow - minRow + 1;
     masterCell.colSpan = maxCol - minCol + 1;
-    masterCell.style.display = '';
+    masterCell.classList.remove('tc-cell--hidden');
 
     // Clear and hide the other merged cells
     selectedSet.forEach(cellElement => {
