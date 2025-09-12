@@ -1114,15 +1114,15 @@ export default class Table {
   }
 
   /**
-   * Merge all currently selected table cells into a single cell.
+   * Merge all currently selected table cells into a single cell
    *
    * The merged cell will:
-   *  - Contain the combined content of all selected cells (joined with <br>).
-   *  - Expand its rowSpan and colSpan to cover the entire selected rectangle.
-   *  - Hide all other cells that were part of the merge.
+   *  - contain the combined content of all selected cells (joined with <br>)
+   *  - expand its rowSpan and colSpan to cover the entire selected rectangle
+   *  - hide all other cells that were part of the merge
    *
    * Selection must form a contiguous rectangular block; otherwise, a notification
-   * will be shown and the merge will be cancelled.
+   * will be shown and the merge will be cancelled
    */
   mergeSelectedCells() {
     const selectedCells = Array.from(this.table.querySelectorAll('.cell--selected'));
@@ -1133,10 +1133,12 @@ export default class Table {
     const rows = this.numberOfRows;
     const cols = this.numberOfColumns;
 
-    // Initialize the matrix
     const matrix = Array.from({ length: rows }, () => new Array(cols).fill(null));
 
-    // Fill the matrix with table cells, considering rowSpan and colSpan
+    // Fill the matrix with table cells, considering rowSpan and colSpan and skipping cells hidden by previous merges
+    //
+    // The matrix represents the visible structure of the table. Each entry points
+    // to the corresponding <td>/<th> element, taking into account rowspan and colspan
     //
     // Example 1: simple table without spans
     // <table>
@@ -1181,26 +1183,36 @@ export default class Table {
     //   [ A, A, B ],
     //   [ A, A, C ]
     // ]
+
     for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
       let currentColIndex = 0;
       const rowElement = this.getRow(rowIndex + 1);
 
       for (const cellElement of rowElement.querySelectorAll(`.${CSS.cell}`)) {
-        // Skip already filled positions
-        while (matrix[rowIndex][currentColIndex]) {
-          currentColIndex++;
-        }
+        if (!cellElement.classList.contains('tc-cell--hidden')) {
 
-        const rowSpan = cellElement.rowSpan ?? 1;
-        const colSpan = cellElement.colSpan ?? 1;
+          // find next free column
+          const nextFreeColIndex = matrix[rowIndex].findIndex(
+            (cell, index) => index >= currentColIndex && !cell
+          );
+          currentColIndex = nextFreeColIndex >= 0 ? nextFreeColIndex : matrix[rowIndex].length;
 
-        // Fill the matrix positions for this cell
-        for (let spanRow = 0; spanRow < rowSpan; spanRow++) {
-          for (let spanCol = 0; spanCol < colSpan; spanCol++) {
-            matrix[rowIndex + spanRow][currentColIndex + spanCol] = cellElement;
+          const rowSpan = cellElement.rowSpan ?? 1;
+          const colSpan = cellElement.colSpan ?? 1;
+
+          // fill all positions in matrix that this cell covers
+          for (let spanRow = 0; spanRow < rowSpan; spanRow++) {
+            for (let spanCol = 0; spanCol < colSpan; spanCol++) {
+              const targetRow = rowIndex + spanRow;
+              const targetCol = currentColIndex + spanCol;
+              if (targetRow < rows && targetCol < cols) {
+                matrix[targetRow][targetCol] = cellElement;
+              }
+            }
           }
+
+          currentColIndex += colSpan;
         }
-        currentColIndex += colSpan;
       }
     }
 
@@ -1280,7 +1292,7 @@ export default class Table {
     // +----+----+----+
     //
     // User selects A and C → rectangle includes hidden cells, but they are ignored
-    // (since `cell.style.display === 'none'`).
+    // (since cell.style.display === 'none').
     // → Validation passes.
     let invalidSelection = false;
     for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex++) {
@@ -1342,7 +1354,7 @@ export default class Table {
     selectedSet.forEach(cellElement => {
       if (cellElement !== masterCell) {
         cellElement.innerHTML = '';
-        cellElement.style.display = 'none';
+        cellElement.classList.add('tc-cell--hidden');
         cellElement.rowSpan = 1;
         cellElement.colSpan = 1;
       }
