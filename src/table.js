@@ -1183,7 +1183,6 @@ export default class Table {
     //   [ A, A, B ],
     //   [ A, A, C ]
     // ]
-
     for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
       let currentColIndex = 0;
       const rowElement = this.getRow(rowIndex + 1);
@@ -1242,8 +1241,6 @@ export default class Table {
     //   { row: 1, col: 1 },   // E
     //   { row: 2, col: 1 }    // H
     // ]
-    //
-    // These coordinates will be used later to calculate the bounding rectangle (minRow, maxRow, minCol, maxCol)
     const selectedSet = new Set(selectedCells);
     const selectedPositions = [];
     for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
@@ -1335,10 +1332,10 @@ export default class Table {
     // Selected cells: B, C, E, F
     //
     // After merge:
-    // +----+---------+
-    // | A  |  BCEF   |   <-- masterCell now spans 2x2, contains combined content
-    // +----+         |
-    // | D  |  hidden |   <-- other cells cleared + style.display = 'none'
+    // +----+-----------------+
+    // | A  |      BCEF       |   <-- masterCell now spans 2x2, contains combined content
+    // +----+                 |
+    // | D  | tc-cell--hidden |   <-- other cells cleared
     // +----+---------+
     const masterCell = matrix[minRow][minCol];
     if (!masterCell) {
