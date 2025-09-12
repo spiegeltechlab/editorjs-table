@@ -1352,6 +1352,8 @@ export default class Table {
         cellElement.colSpan = 1;
       }
     });
+
+    this.removeSelectedCellStyle();
   }
 
   /**
