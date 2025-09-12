@@ -1137,6 +1137,50 @@ export default class Table {
     const matrix = Array.from({ length: rows }, () => new Array(cols).fill(null));
 
     // Fill the matrix with table cells, considering rowSpan and colSpan
+    //
+    // Example 1: simple table without spans
+    // <table>
+    //   <tr><td>A</td><td>B</td><td>C</td></tr>
+    //   <tr><td>D</td><td>E</td><td>F</td></tr>
+    // </table>
+    //
+    // matrix = [
+    //   [ A, B, C ],
+    //   [ D, E, F ]
+    // ]
+    // --------------------------------------------------------
+    // Example 2: with colSpan
+    // <table>
+    //   <tr><td colspan="2">A</td><td>B</td></tr>
+    //   <tr><td>C</td><td>D</td><td>E</td></tr>
+    // </table>
+    //
+    // matrix = [
+    //   [ A, A, B ],   // A spans 2 columns
+    //   [ C, D, E ]
+    // ]
+    // --------------------------------------------------------
+    // Example 3: with rowSpan
+    // <table>
+    //   <tr><td rowspan="2">A</td><td>B</td></tr>
+    //   <tr><td>C</td></tr>
+    // </table>
+    //
+    // matrix = [
+    //   [ A, B ],
+    //   [ A, C ]       // A spans 2 rows
+    // ]
+    // --------------------------------------------------------
+    // Example 4: with both rowSpan and colSpan
+    // <table>
+    //   <tr><td rowspan="2" colspan="2">A</td><td>B</td></tr>
+    //   <tr><td>C</td></tr>
+    // </table>
+    //
+    // matrix = [
+    //   [ A, A, B ],
+    //   [ A, A, C ]
+    // ]
     for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
       let currentColIndex = 0;
       const rowElement = this.getRow(rowIndex + 1);
@@ -1161,9 +1205,35 @@ export default class Table {
     }
 
     // Determine positions of the selected cells
+    //
+    // Example table matrix (after filling with rowSpan/colSpan):
+    // [
+    //   [ A, B, C ],
+    //   [ D, E, F ],
+    //   [ G, H, I ]
+    // ]
+    //
+    // Suppose the user selected cells B, E, and H:
+    //
+    // Visually:
+    //   +----+----+----+
+    //   | A  | X  | C  |
+    //   +----+----+----+
+    //   | D  | X  | F  |
+    //   +----+----+----+
+    //   | G  | X  | I  |
+    //   +----+----+----+
+    //
+    // The loop collects their coordinates in the matrix:
+    // selectedPositions = [
+    //   { row: 0, col: 1 },   // B
+    //   { row: 1, col: 1 },   // E
+    //   { row: 2, col: 1 }    // H
+    // ]
+    //
+    // These coordinates will be used later to calculate the bounding rectangle (minRow, maxRow, minCol, maxCol)
     const selectedSet = new Set(selectedCells);
     const selectedPositions = [];
-
     for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
       for (let colIndex = 0; colIndex < cols; colIndex++) {
         if (selectedSet.has(matrix[rowIndex][colIndex])) {
@@ -1179,6 +1249,39 @@ export default class Table {
     const maxCol = Math.max(...selectedPositions.map(pos => pos.col));
 
     // Validate: check if all cells inside the rectangle are selected or already merged
+    //
+    // Example 1: valid selection (contiguous rectangle)
+    // +----+----+----+
+    // | X  | X  |    |
+    // +----+----+----+
+    // | X  | X  |    |
+    // +----+----+----+
+    //
+    // → All cells in the 2x2 rectangle are selected.
+    // → Validation passes.
+    //
+    // Example 2: invalid selection (gap inside rectangle)
+    // +----+----+----+
+    // | X  |    |    |
+    // +----+----+----+
+    // | X  | X  |    |
+    // +----+----+----+
+    //
+    // Bounding rectangle covers a 2x2 area, but top-right cell is missing.
+    // → Validation fails.
+    //
+    // Example 3: valid selection with previously merged cells
+    // (assume top-left 2x2 block was merged already, hidden cells have style.display = 'none')
+    // +---------+----+
+    // |   A     | B  |
+    // | (merged)|    |
+    // +---------+----+
+    // | hidden  | C  |
+    // +----+----+----+
+    //
+    // User selects A and C → rectangle includes hidden cells, but they are ignored
+    // (since `cell.style.display === 'none'`).
+    // → Validation passes.
     let invalidSelection = false;
     for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex++) {
       for (let colIndex = minCol; colIndex <= maxCol; colIndex++) {
@@ -1206,7 +1309,25 @@ export default class Table {
       .map(cellElement => cellElement.innerHTML)
       .join('<br>');
 
-    // Define the master cell (top-left) and set its new span
+    // Define the master cell (top-left) and expand it to cover the rectangle
+    //
+    // Example: merging a 2x2 block
+    //
+    // Before merge:
+    // +----+----+----+
+    // | A  | B  | C  |
+    // +----+----+----+
+    // | D  | E  | F  |
+    // +----+----+----+
+    //
+    // Selected cells: B, C, E, F
+    //
+    // After merge:
+    // +----+---------+
+    // | A  |  BCEF   |   <-- masterCell now spans 2x2, contains combined content
+    // +----+         |
+    // | D  |  hidden |   <-- other cells cleared + style.display = 'none'
+    // +----+---------+
     const masterCell = matrix[minRow][minCol];
     if (!masterCell) {
       return;
