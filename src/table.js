@@ -1306,6 +1306,14 @@ export default class Table {
         message: 'Invalid selection: please select a contiguous rectangle.',
         style: 'error'
       });
+
+      const event = new CustomEvent('editorjs-custom-table-merge-failed', {
+        detail: {
+          reason: 'Invalid selection: please select a contiguous rectangle.'
+        },
+        bubbles: true
+      });
+      this.wrapper.dispatchEvent(event);
       return;
     }
 
