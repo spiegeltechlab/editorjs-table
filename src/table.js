@@ -383,7 +383,33 @@ export default class Table {
     const cell = this.getCell(row, column);
     cell.colSpan = content?.colspan ?? 1;
     cell.rowSpan = content?.rowspan ?? 1;
-    cell.innerHTML = content?.text ?? '';
+    cell.innerHTML = this.convertParagraphDataToHTML(content.content ?? []);
+  }
+
+  /**
+   * Converts structured paragraph content objects into an HTML string with <p> tags.
+   *
+   * @param {Array<Object>} contents - An array of content objects with the following structure:
+   *    [
+   *      {
+   *        id: string | null,        // optional unique identifier
+   *        type: 'paragraph',        // content type, expected to be 'paragraph'
+   *        data: { text: string }    // text content for the paragraph
+   *      }
+   *    ]
+   * @returns {string} - A single HTML string containing <p> elements with data-id attributes.
+   */
+  convertParagraphDataToHTML(contents) {
+    let html = '';
+
+    contents.forEach(content => {
+      if (content.type === 'paragraph' && content.data?.text) {
+        const id = content.id || $.generateRandomKey();
+        html += `<p data-id="${id}">${content.data.text}</p>`;
+      }
+    });
+
+    return html;
   }
 
   /**
@@ -1103,7 +1129,8 @@ export default class Table {
       }
       
       data.push(cells.map(cell => ({
-          text: cell.innerHTML ?? '',
+          id: cell.id || $.generateRandomKey(),
+          content: this.extractParagraphData(cell),
           colspan: cell.colSpan ?? 1,
           rowspan: cell.rowSpan ?? 1,
         
@@ -1111,6 +1138,29 @@ export default class Table {
     }
 
     return data;
+  }
+
+  /**
+   * Extracts structured paragraph data from a given cell element.
+   *
+   * @param {HTMLElement} cell - A DOM element containing one or more <p> tags.
+   * @returns {Array<Object>} - An array of paragraph objects with the following structure:
+   *    [
+   *      {
+   *        id: string | null,        // value of the data-id attribute on the <p> tag
+   *        type: 'paragraph',        // fixed type identifier
+   *        data: { text: string }    // inner HTML content of the paragraph
+   *      }
+   *    ]
+   */
+  extractParagraphData(cell) {
+    const paragraphs = cell.querySelectorAll('p');
+
+    return Array.from(paragraphs).map(paragraph => ({
+      id: paragraph.getAttribute('data-id'),
+      type: 'paragraph',
+      data: { text: paragraph.innerHTML }
+    }));
   }
 
   /**

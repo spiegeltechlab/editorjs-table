@@ -126,3 +126,7 @@ export function focus(element, atStart = true) {
   selection.removeAllRanges();
   selection.addRange(range);
 }
+
+export function generateRandomKey() {
+    return Math.random().toString(36).substring(2);
+}
