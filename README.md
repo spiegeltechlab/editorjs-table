@@ -80,10 +80,94 @@ This Tool returns `data` in the following format
   "data" : {
     "withHeadings": true,
     "content": [
-      [ { "text": "A1", "rowspan": 2, "colspan": 1 }, { "text": "B1" } ],
-      [ { "text": "A2" }, { "text": "B2" } ],
-      [ { "text": "A3" }, { "text": "B3" }, ]
-    ],
+      {
+        "id": "xhznwdtyqap",
+        "content": [
+          {
+            "id": "denmtt3cnct",
+            "content": [
+              {
+                "id": "o842qp1uh7s",
+                "type": "paragraph",
+                "data": { "text": "Header <b>A</b>." }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "id": "q6wg2x4b0e",
+            "content": [
+              {
+                "id": "akxc6gensh6",
+                "type": "paragraph",
+                "data": { "text": "Header <i>B</i>." }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "id": "l3ranefcrx",
+            "content": [
+              {
+                "id": "cuq74ngp2re",
+                "type": "paragraph",
+                "data": { "text": "Header <u>C</u>." }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          }
+        ]
+      },
+      {
+        "id": "8azjvdjdbw2",
+        "content": [
+          {
+            "id": "3frajhsj2te",
+            "content": [
+              {
+                "id": "0dwyyexxpdqa",
+                "type": "paragraph",
+                "data": { "text": "A#1" }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "id": "qg0zg0h3kho",
+            "content": [
+              {
+                "id": "wc9lzltsdkp",
+                "type": "paragraph",
+                "data": { "text": "B#1" }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "id": "rsixknd6v",
+            "content": [
+              {
+                "id": "u7f6r5d3t7",
+                "type": "paragraph",
+                "data": { "text": "merged (C#1)" }
+              },
+              {
+                "id": "nd12o931je",
+                "type": "paragraph",
+                "data": { "text": "merged (C#2)" }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 2
+          }
+        ]
+      }
+    ]
   }
 }
 ```

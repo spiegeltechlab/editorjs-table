@@ -57,8 +57,7 @@ export default class Table {
   constructor(readOnly, api, data, config) {
     this.readOnly = readOnly;
     this.api = api;
-    const cleanedArray = data.content.map(innerArray => innerArray.filter(item => item !== null));
-    this.data = { content: cleanedArray };
+    this.data = data;
     this.config = config;
 
     /**
@@ -383,7 +382,7 @@ export default class Table {
     const cell = this.getCell(row, column);
     cell.colSpan = content?.colspan ?? 1;
     cell.rowSpan = content?.rowspan ?? 1;
-    cell.innerHTML = this.convertParagraphDataToHTML(content.content ?? []);
+    cell.innerHTML = this.convertParagraphDataToHtmlString(content.content ?? []);
   }
 
   /**
@@ -399,17 +398,19 @@ export default class Table {
    *    ]
    * @returns {string} - A single HTML string containing <p> elements with data-id attributes.
    */
-  convertParagraphDataToHTML(contents) {
-    let html = '';
+  convertParagraphDataToHtmlString(contents) {
+    let htmlString = '';
 
     contents.forEach(content => {
       if (content.type === 'paragraph' && content.data?.text) {
         const id = content.id || $.generateRandomKey();
-        html += `<p data-id="${id}">${content.data.text}</p>`;
+        const pTag = this.createParagraph(id);
+        pTag.innerHTML = content.data.text;
+        htmlString += pTag.outerHTML;
       }
     });
 
-    return html;
+    return htmlString;
   }
 
   /**
@@ -432,12 +433,14 @@ export default class Table {
      * Iterate all rows and add a new cell to them for creating a column
      */
     for (let rowIndex = 1; rowIndex <= this.numberOfRows; rowIndex++) {
-      if (colIndex && !this.data.content?.[rowIndex-1]?.[colIndex]) {
+      if (colIndex && !this.data.content?.[rowIndex-1]?.content?.[colIndex]) {
         continue;
       }
 
       let cell;
       const cellElem = this.createCell();
+      const newParagraph = this.createParagraph();
+      cellElem.appendChild(newParagraph);
 
       if (columnIndex > 0 && columnIndex <= numberOfColumns) {
         cell = this.getCell(rowIndex, columnIndex);
@@ -473,9 +476,11 @@ export default class Table {
    * @param {boolean} [setFocus] - pass true to focus the inserted row
    * @returns {HTMLElement} row
    */
-  addRow(index = -1, setFocus = false) {
+  addRow(index = -1, setFocus = false, rowIndex) {
     let insertedRow;
     let rowElem = $.make('tr', CSS.row);
+    const rowId = this.data.content?.[rowIndex]?.id || $.generateRandomKey();
+    rowElem.setAttribute('data-id', rowId);
 
     if (this.tunes.withHeadings) {
       this.removeHeadingAttrFromFirstRow();
@@ -597,9 +602,9 @@ export default class Table {
   computeInitialSize() {
     const content = this.data && this.data.content;
     const isValidArray = Array.isArray(content);
-    const isNotEmptyArray = isValidArray ? content.length : false;
     const contentRows = isValidArray ? content.length : undefined;
-    const contentCols = isNotEmptyArray ?  Math.max(...content.map(c => c.length)) : undefined;
+    const maxContentLength = Math.max(...content.map(item => item.content.length));
+    const contentCols = maxContentLength;
     const parsedRows = Number.parseInt(this.config && this.config.rows);
     const parsedCols = Number.parseInt(this.config && this.config.cols);
 
@@ -628,7 +633,7 @@ export default class Table {
     const { rows, cols } = this.computeInitialSize();
 
     for (let i = 0; i < rows; i++) {
-      this.addRow();
+      this.addRow(undefined, false, i);
     }
 
     for (let i = 0; i < cols; i++) {
@@ -643,14 +648,13 @@ export default class Table {
    */
   fill() {
     const data = this.data;
-
-    if (data && data.content) {
-      for (let i = 0; i < data.content.length; i++) {
-        for (let j = 0; j < data.content[i].length; j++) {
-          this.setCellContent(i + 1, j + 1, data.content[i][j]);
-        }
-      }
-    }
+    const rows = data.content ?? [];
+    rows.forEach((row, rowIndex) => {
+      const cells = row.content ?? [];
+      cells.forEach((cell, cellIndex) => {
+        this.setCellContent(rowIndex + 1, cellIndex + 1, cell);
+      })
+    });
   }
 
   /**
@@ -662,7 +666,8 @@ export default class Table {
   fillRow(row, numberOfColumns) {
     for (let i = 1; i <= numberOfColumns; i++) {
       const newCell = this.createCell();
-
+      const newParagraph = this.createParagraph();
+      newCell.appendChild(newParagraph);
       row.appendChild(newCell);
     }
   }
@@ -676,8 +681,23 @@ export default class Table {
     return $.make('td', CSS.cell, {
       colSpan: 1,
       rowSpan: 1,
-      contentEditable: !this.readOnly
     });
+  }
+
+  /**
+   * Creating a paragraph element
+   *
+   * @return {Element}
+   */
+  createParagraph(id) {
+    return $.make('p', undefined,
+      {
+        contentEditable: !this.readOnly
+      },
+      {
+        id: id ?? $.generateRandomKey()
+      }
+    );
   }
 
   /**
@@ -1121,6 +1141,7 @@ export default class Table {
 
     for (let i = 1; i <= this.numberOfRows; i++) {
       const row = this.table.querySelector(`.${CSS.row}:nth-child(${i})`);
+      const rowId = row.getAttribute('data-id') ?? $.generateRandomKey();
       const cells = Array.from(row.querySelectorAll(`.${CSS.cell}`));
       const isEmptyRow = cells.every(cell => !cell.textContent.trim());
 
@@ -1128,13 +1149,15 @@ export default class Table {
         continue;
       }
       
-      data.push(cells.map(cell => ({
+      data.push({
+        id: rowId,
+        content: cells.map(cell => ({
           id: cell.id || $.generateRandomKey(),
           content: this.extractParagraphData(cell),
           colspan: cell.colSpan ?? 1,
           rowspan: cell.rowSpan ?? 1,
-        
-      })));
+        })).filter(cell => cell.content.length)
+      });
     }
 
     return data;
@@ -1370,7 +1393,9 @@ export default class Table {
     // Merge the content of all selected cells
     const mergedContent = Array.from(selectedSet)
       .map(cellElement => cellElement.innerHTML)
-      .join('<br>');
+      .filter(cellElement => cellElement.startsWith('<p'));
+
+    if (!mergedContent.length) return;
 
     // Define the master cell (top-left) and expand it to cover the rectangle
     //
@@ -1396,7 +1421,7 @@ export default class Table {
       return;
     }
 
-    masterCell.innerHTML = mergedContent;
+    masterCell.innerHTML = mergedContent.join('');
     masterCell.rowSpan = maxRow - minRow + 1;
     masterCell.colSpan = maxCol - minCol + 1;
     masterCell.classList.remove('tc-cell--hidden');

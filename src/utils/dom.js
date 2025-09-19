@@ -9,7 +9,8 @@
 export function make(
   tagName,
   classNames,
-  attributes = {}
+  attributes = {},
+  dataAttributes = {},
 ) {
   const el = document.createElement(tagName);
 
@@ -25,6 +26,14 @@ export function make(
     }
 
     el[attrName] = attributes[attrName];
+  }
+
+  for (const dataAttrName in dataAttributes) {
+    if (!Object.prototype.hasOwnProperty.call(dataAttributes, dataAttrName)) {
+      continue;
+    }
+
+    el.setAttribute(`data-${dataAttrName}`, dataAttributes[dataAttrName])
   }
 
   return el;
