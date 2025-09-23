@@ -382,6 +382,8 @@ export default class Table {
     const cell = this.getCell(row, column);
     cell.colSpan = content?.colspan ?? 1;
     cell.rowSpan = content?.rowspan ?? 1;
+    const cellId = content?.id ?? $.generateRandomKey();
+    cell.setAttribute('data-id', cellId);
     cell.innerHTML = this.convertParagraphDataToHtmlString(content.content ?? []);
   }
 
@@ -678,10 +680,15 @@ export default class Table {
    * @return {Element}
    */
   createCell() {
-    return $.make('td', CSS.cell, {
-      colSpan: 1,
-      rowSpan: 1,
-    });
+    return $.make('td', CSS.cell,
+      {
+        colSpan: 1,
+        rowSpan: 1,
+      },
+      {
+        id: $.generateRandomKey()
+      }
+    );
   }
 
   /**
@@ -1151,15 +1158,16 @@ export default class Table {
       
       data.push({
         id: rowId,
-        content: cells.map(cell => ({
-          id: cell.id || $.generateRandomKey(),
-          content: this.extractParagraphData(cell),
-          colspan: cell.colSpan ?? 1,
-          rowspan: cell.rowSpan ?? 1,
-        })).filter(cell => cell.content.length)
+        content: cells.map(cell => {
+          return {
+            id: cell.getAttribute('data-id') || $.generateRandomKey(),
+            content: this.extractParagraphData(cell),
+            rowspan: cell.rowSpan ?? 1,
+            colspan: cell.colSpan ?? 1,
+          }
+        }).filter(cell => cell.content.length)
       });
     }
-
     return data;
   }
 
