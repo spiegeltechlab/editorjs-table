@@ -603,7 +603,7 @@ export default class Table {
     const content = this.data && this.data.content;
     const isValidArray = Array.isArray(content);
     const contentRows = isValidArray ? content.length : undefined;
-    const maxContentLength = Math.max(...content.map(item => item.content.length));
+    const maxContentLength = content.length ? Math.max(...content.map(item => item.content.length)) : undefined;
     const contentCols = maxContentLength;
     const parsedRows = Number.parseInt(this.config && this.config.rows);
     const parsedCols = Number.parseInt(this.config && this.config.cols);
