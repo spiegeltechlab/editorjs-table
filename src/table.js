@@ -1159,12 +1159,17 @@ export default class Table {
       data.push({
         id: rowId,
         content: cells.map(cell => {
-          return {
+          const cellData = {
             id: cell.getAttribute('data-id') || $.generateRandomKey(),
             content: this.extractParagraphData(cell),
-            rowspan: cell.rowSpan ?? 1,
-            colspan: cell.colSpan ?? 1,
           }
+          if (typeof cell.rowSpan === 'number' && cell.rowSpan > 1) {
+            cellData.rowspan = cell.rowSpan;
+          }
+          if (typeof cell.colSpan === 'number' && cell.colSpan > 1) {
+            cellData.colspan = cell.colSpan; 
+          }
+          return cellData;
         }).filter(cell => cell.content.length)
       });
     }
