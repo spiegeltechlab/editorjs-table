@@ -17,7 +17,6 @@ const CSS = {
   wrapperReadOnly: 'tc-wrap--readonly',
   table: 'tc-table',
   row: 'tc-row',
-  withHeadings: 'tc-table--heading',
   rowSelected: 'tc-row--selected',
   cell: 'tc-cell',
   cellSelected: 'tc-cell--selected',
@@ -30,8 +29,7 @@ const CSS = {
 /**
  * @typedef {object} TableConfig
  * @description Tool's config from Editor
- * @property {boolean} withHeadings — Uses the first line as headings
- * @property {string[][]} withHeadings — two-dimensional array with table contents
+ * @property {string[][]} content — two-dimensional array with table contents
  */
 
 /**
@@ -91,11 +89,6 @@ export default class Table {
 
     // Index of last selected column via toolbox
     this.selectedColumn = 0;
-
-    // Additional settings for the table
-    this.tunes = {
-      withHeadings: false
-    };
 
     /**
      * Resize table to match config/data size
@@ -416,13 +409,42 @@ export default class Table {
   }
 
   /**
+   * Adds an initial column to the table by iterating through all rows
+   * and inserting a new cell into each one.
+   *
+   * Each newly added cell will contain a paragraph element for text input.
+   *
+   * @returns {void}
+   */
+  drawInitialColumn(colIndex) {
+    /**
+     * Iterate all rows and add a new cell to them for creating a column
+     */
+    for (let rowIndex = 1; rowIndex <= this.numberOfRows; rowIndex++) {
+      // Check whether the table is drawn based on existing content
+      if (
+        this.data.content.length && 
+        this.data.content[rowIndex-1]?.content.length && 
+        !this.data.content[rowIndex-1]?.content?.[colIndex]
+      ) {
+          continue;
+      }
+      const cellElem = this.createCell();
+      const newParagraph = this.createParagraph();
+      cellElem.appendChild(newParagraph);
+
+      this.getRow(rowIndex).appendChild(cellElem);
+    }
+  };
+
+  /**
    * Add column in table on index place
    * Add cells in each row
    *
    * @param {number} columnIndex - number in the array of columns, where new column to insert, -1 if insert at the end
    * @param {boolean} [setFocus] - pass true to focus the first cell
    */
-  addColumn(columnIndex = -1, setFocus = false, colIndex) {
+  addColumn(columnIndex = -1, setFocus = false) {
     let numberOfColumns = this.numberOfColumns;
      /**
       * Check if the number of columns has reached the maximum allowed columns specified in the configuration,
@@ -435,10 +457,6 @@ export default class Table {
      * Iterate all rows and add a new cell to them for creating a column
      */
     for (let rowIndex = 1; rowIndex <= this.numberOfRows; rowIndex++) {
-      if (colIndex && !this.data.content?.[rowIndex-1]?.content?.[colIndex]) {
-        continue;
-      }
-
       let cell;
       const cellElem = this.createCell();
       const newParagraph = this.createParagraph();
@@ -468,7 +486,32 @@ export default class Table {
     if (this.config?.maxcols && this.numberOfColumns > this.config.maxcols - 1 && addColButton ){
       addColButton.classList.add(CSS.addColumnDisabled);
     }
-    this.addHeadingAttrToFirstRow();
+  };
+
+  /**
+   * Draws the initial row in the table with the given row content.
+   *
+   * @param {Object} rowContent - Data used to populate the initial row.
+   * @param {string} [rowContent.id] - Optional ID for the row; a random key will be generated if missing or empty.
+   * @returns {HTMLElement} row
+   */
+  drawInitialRow(rowContent) {
+    let insertedRow;
+    const rowElem = $.make('tr', CSS.row);
+    const rowId = rowContent?.id?.trim() ? rowContent.id : $.generateRandomKey();
+    rowElem.setAttribute('data-id', rowId);
+
+    /**
+     * We remember the number of columns, because it is calculated
+     * by the number of cells in the first row
+     * It is necessary that the first line is filled in correctly
+     */
+    const numberOfColumns = this.numberOfColumns;
+
+    insertedRow = this.table.appendChild(rowElem);
+    this.fillRow(insertedRow, numberOfColumns);
+
+    return insertedRow;
   };
 
   /**
@@ -478,22 +521,17 @@ export default class Table {
    * @param {boolean} [setFocus] - pass true to focus the inserted row
    * @returns {HTMLElement} row
    */
-  addRow(index = -1, setFocus = false, rowIndex) {
+  addRow(index = -1, setFocus = false) {
     let insertedRow;
-    let rowElem = $.make('tr', CSS.row);
-    const rowId = this.data.content?.[rowIndex]?.id || $.generateRandomKey();
-    rowElem.setAttribute('data-id', rowId);
-
-    if (this.tunes.withHeadings) {
-      this.removeHeadingAttrFromFirstRow();
-    }
+    const rowElem = $.make('tr', CSS.row);
+    rowElem.setAttribute('data-id', $.generateRandomKey());
 
     /**
      * We remember the number of columns, because it is calculated
      * by the number of cells in the first row
      * It is necessary that the first line is filled in correctly
      */
-    let numberOfColumns = this.numberOfColumns;
+    const numberOfColumns = this.numberOfColumns;
      /**
       * Check if the number of rows has reached the maximum allowed rows specified in the configuration,
       * and if so, exit the function to prevent adding more columns beyond the limit.
@@ -503,7 +541,7 @@ export default class Table {
     }
 
     if (index > 0 && index <= this.numberOfRows) {
-      let row = this.getRow(index);
+      const row = this.getRow(index);
 
       insertedRow = $.insertBefore(rowElem, row);
     } else {
@@ -511,10 +549,6 @@ export default class Table {
     }
 
     this.fillRow(insertedRow, numberOfColumns);
-
-    if (this.tunes.withHeadings) {
-      this.addHeadingAttrToFirstRow();
-    }
 
     const insertedRowFirstCell = this.getRowFirstCell(insertedRow);
 
@@ -635,11 +669,12 @@ export default class Table {
     const { rows, cols } = this.computeInitialSize();
 
     for (let i = 0; i < rows; i++) {
-      this.addRow(undefined, false, i);
+      const rowContent = this.data?.content?.[i];
+      this.drawInitialRow(rowContent);
     }
 
     for (let i = 0; i < cols; i++) {
-      this.addColumn(undefined, false, i);
+      this.drawInitialColumn(i);
     }
   }
 
@@ -921,25 +956,6 @@ export default class Table {
     }
   }
 
-  /**
-   * Makes the first row headings
-   *
-   * @param {boolean} withHeadings - use headings row or not
-   */
-  setHeadingsSetting(withHeadings) {
-    this.tunes.withHeadings = withHeadings;
-
-    if (withHeadings) {
-      this.table.classList.add(CSS.withHeadings);
-      this.addHeadingAttrToFirstRow();
-      this.convertTabelRowToTableHead();
-    } else {
-      this.table.classList.remove(CSS.withHeadings);
-      this.removeHeadingAttrFromFirstRow();
-      this.convertTabelHeadToTableRow();
-    }
-  }
-
   convertTabelRowToTableHead() {
     for (let cellIndex = 1; cellIndex <= this.numberOfColumns; cellIndex++) {
       let tdCell = this.getCell(1, cellIndex);
@@ -969,32 +985,6 @@ export default class Table {
         tdCell.setAttribute(attr.name, attr.value);
       }
       thCell.parentNode.replaceChild(tdCell, thCell);
-    }
-  }
-
-  /**
-   * Adds an attribute for displaying the placeholder in the cell
-   */
-  addHeadingAttrToFirstRow() {
-    for (let cellIndex = 1; cellIndex <= this.numberOfColumns; cellIndex++) {
-      let cell = this.getCell(1, cellIndex);
-
-      if (cell) {
-        cell.setAttribute('heading', this.api.i18n.t('Heading'));
-      }
-    }
-  }
-
-  /**
-   * Removes an attribute for displaying the placeholder in the cell
-   */
-  removeHeadingAttrFromFirstRow() {
-    for (let cellIndex = 1; cellIndex <= this.numberOfColumns; cellIndex++) {
-      let cell = this.getCell(1, cellIndex);
-
-      if (cell) {
-        cell.removeAttribute('heading');
-      }
     }
   }
 
