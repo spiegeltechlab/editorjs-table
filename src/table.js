@@ -9,6 +9,8 @@ import {
   IconDirectionDownRight,
   IconCollapse,
   IconCross,
+  IconTableWithHeadings,
+  IconTableWithoutHeadings,
   IconPlus
 } from '@codexteam/icons';
 
@@ -229,6 +231,21 @@ export default class Table {
             this.deleteColumn(this.selectedColumn);
             this.hideToolboxes();
           }
+        },
+        {
+          label: this.api.i18n.t('Column with headings'), 
+          icon: IconTableWithHeadings,
+          onClick: () => {
+            this.toggleColumnHeadingAttribute(this.selectedColumn, true);
+            this.hideToolboxes();
+          }
+        }, {
+          label: this.api.i18n.t('Column without headings'),
+          icon: IconTableWithoutHeadings,
+          onClick: () => {
+            this.toggleColumnHeadingAttribute(this.selectedColumn, false);
+            this.hideToolboxes();
+          }
         }
       ],
       onOpen: () => {
@@ -293,6 +310,21 @@ export default class Table {
           },
           onClick: () => {
             this.mergeSelectedCells();
+            this.hideToolboxes();
+          }
+        },
+        {
+          label: this.api.i18n.t('Row with headings'), 
+          icon: IconTableWithHeadings,
+          onClick: () => {
+            this.toggleRowHeadingAttribute(this.selectedRow, true);
+            this.hideToolboxes();
+          }
+        }, {
+          label: this.api.i18n.t('Row without headings'),
+          icon: IconTableWithoutHeadings,
+          onClick: () => {
+            this.toggleRowHeadingAttribute(this.selectedRow, false);
             this.hideToolboxes();
           }
         }
@@ -429,7 +461,8 @@ export default class Table {
       ) {
           continue;
       }
-      const cellElem = this.createCell();
+      const isHeading = this.data?.content?.[rowIndex-1]?.content?.[colIndex]?.heading ?? false;
+      const cellElem = this.createCell(isHeading);
       const newParagraph = this.createParagraph();
       cellElem.appendChild(newParagraph);
 
@@ -595,8 +628,56 @@ export default class Table {
     if (addRowButton) {
       addRowButton.classList.remove(CSS.addRowDisabled);
     }
+  }
 
-    this.addHeadingAttrToFirstRow();
+  /**
+   * Toggles all cells in a given column between <th> and <td> elements.
+   *
+   * - Preserves all attributes and content of each cell.
+   * - Converts <td> → <th> if `toHeading` is true, otherwise <th> → <td>.
+   *
+   * @param {number} colIndex - The zero-based index of the column to modify.
+   * @param {boolean} [toHeading=false] - If true, converts <td> to <th>; otherwise <th> to <td>.
+   */
+  toggleColumnHeadingAttribute(colIndex, toHeading = false) {
+    const newTagName = toHeading ? 'th' : 'td';
+
+    for (let i = 1; i <= this.numberOfRows; i++) {
+      const cell = this.getCell(i, colIndex);
+      if (!cell) continue;
+
+      const newElem = document.createElement(newTagName);
+      for (let { name, value } of cell.attributes) {
+        newElem.setAttribute(name, value);
+      }
+      newElem.innerHTML = cell.innerHTML;
+      cell.replaceWith(newElem);
+    }
+  }
+
+  /**
+   * Toggles all cells in a given table row between <th> and <td> elements.
+   *
+   * - Preserves all attributes and content of each cell.
+   * - Converts <td> → <th> if `toHeading` is true, otherwise <th> → <td>.
+   *
+   * @param {number} rowIndex - The zero-based index of the row to modify.
+   * @param {boolean} [toHeading=false] - If true, converts <td> to <th>; otherwise <th> to <td>.
+   */
+  toggleRowHeadingAttribute(rowIndex, toHeading = false) {
+    const selectedRow = this.getRow(rowIndex);
+
+    const fromTag = toHeading ? 'td' : 'th';
+    const toTag = toHeading ? 'th' : 'td';
+
+    selectedRow.querySelectorAll(fromTag).forEach(origElem => {
+      const newElem = document.createElement(toTag);
+      for (let { name, value } of origElem.attributes) {
+        newElem.setAttribute(name, value);
+      }
+      newElem.innerHTML = origElem.innerHTML;
+      origElem.replaceWith(newElem);
+    });
   }
 
   /**
@@ -714,8 +795,9 @@ export default class Table {
    *
    * @return {Element}
    */
-  createCell() {
-    return $.make('td', CSS.cell,
+  createCell(isHeading = false) {
+    const cellTag = isHeading ? 'th' : 'td';
+    return $.make(cellTag, CSS.cell,
       {
         colSpan: 1,
         rowSpan: 1,
@@ -1149,9 +1231,13 @@ export default class Table {
       data.push({
         id: rowId,
         content: cells.map(cell => {
+          console.log('saved cell: ', cell);
           const cellData = {
             id: cell.getAttribute('data-id') || $.generateRandomKey(),
             content: this.extractParagraphData(cell),
+          }
+          if (cell.tagName === 'TH') {
+            cellData.heading = true;
           }
           if (typeof cell.rowSpan === 'number' && cell.rowSpan > 1) {
             cellData.rowspan = cell.rowSpan;
