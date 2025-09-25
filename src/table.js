@@ -1231,7 +1231,6 @@ export default class Table {
       data.push({
         id: rowId,
         content: cells.map(cell => {
-          console.log('saved cell: ', cell);
           const cellData = {
             id: cell.getAttribute('data-id') || $.generateRandomKey(),
             content: this.extractParagraphData(cell),
