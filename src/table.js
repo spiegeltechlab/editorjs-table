@@ -221,18 +221,6 @@ export default class Table {
           }
         },
         {
-          label: this.api.i18n.t('Delete column'),
-          icon: IconCross,
-          hideIf: () => {
-            return this.numberOfColumns === 1;
-          },
-          confirmationRequired: true,
-          onClick: () => {
-            this.deleteColumn(this.selectedColumn);
-            this.hideToolboxes();
-          }
-        },
-        {
           label: this.api.i18n.t('Column with headings'), 
           icon: IconTableWithHeadings,
           onClick: () => {
@@ -244,6 +232,18 @@ export default class Table {
           icon: IconTableWithoutHeadings,
           onClick: () => {
             this.toggleColumnHeadingAttribute(this.selectedColumn, false);
+            this.hideToolboxes();
+          }
+        },
+        {
+          label: this.api.i18n.t('Delete column'),
+          icon: IconCross,
+          hideIf: () => {
+            return this.numberOfColumns === 1;
+          },
+          confirmationRequired: true,
+          onClick: () => {
+            this.deleteColumn(this.selectedColumn);
             this.hideToolboxes();
           }
         }
@@ -291,18 +291,6 @@ export default class Table {
           }
         },
         {
-          label: this.api.i18n.t('Delete row'),
-          icon: IconCross,
-          hideIf: () => {
-            return this.numberOfRows === 1;
-          },
-          confirmationRequired: true,
-          onClick: () => {
-            this.deleteRow(this.selectedRow);
-            this.hideToolboxes();
-          }
-        },
-        {
           label: this.api.i18n.t('Merge cells'),
           icon: IconCollapse,
           hideIf: () => {
@@ -325,6 +313,18 @@ export default class Table {
           icon: IconTableWithoutHeadings,
           onClick: () => {
             this.toggleRowHeadingAttribute(this.selectedRow, false);
+            this.hideToolboxes();
+          }
+        },
+        {
+          label: this.api.i18n.t('Delete row'),
+          icon: IconCross,
+          hideIf: () => {
+            return this.numberOfRows === 1;
+          },
+          confirmationRequired: true,
+          onClick: () => {
+            this.deleteRow(this.selectedRow);
             this.hideToolboxes();
           }
         }
@@ -883,7 +883,11 @@ export default class Table {
     if (!this.isSelectingCells) {
       return;
     }
-    event.target.classList.add('cell--selected');
+    let cell = event.target;
+    if (cell.tagName === 'P') {
+      cell = cell.closest('th, td'); 
+    }
+    cell.classList.add('cell--selected');
   }
 
   /**
