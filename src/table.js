@@ -1491,9 +1491,10 @@ export default class Table {
 
     // Merge the content of all selected cells
     const mergedContent = Array.from(selectedSet)
-      .map(cellElement => cellElement.innerHTML)
-      .filter(cellElement => !cellElement.includes('data-empty="true"'))
-      .filter(cellElement => cellElement.startsWith('<p'));
+      .flatMap(cellElement => 
+        Array.from(cellElement.querySelectorAll('p')).map(p => p.innerHTML.trim()
+      )
+    );
     if (!mergedContent.length) return;
 
     // Define the master cell (top-left) and expand it to cover the rectangle
@@ -1520,7 +1521,9 @@ export default class Table {
       return;
     }
 
-    masterCell.innerHTML = mergedContent.join('');
+    const newParagraph = this.createParagraph();
+    newParagraph.innerHTML = mergedContent.join('<br>');
+    masterCell.innerHTML = newParagraph.outerHTML;
     masterCell.rowSpan = maxRow - minRow + 1;
     masterCell.colSpan = maxCol - minCol + 1;
     masterCell.classList.remove(CSS.cellHidden);

@@ -29,6 +29,8 @@
     font-size: 14px;
     border-top: 1px solid var(--color-border);
     line-height: 1.4;
+    /* Bug-fix: prose style */
+    margin: 0;
 
     &::after {
       position: absolute;
@@ -61,6 +63,7 @@
       text-overflow: ellipsis;
       white-space: wrap;
       border-right: 1px solid var(--color-border);
+      padding: 0;
 
       &.tc-cell--selected {
         background: var(--color-background);
