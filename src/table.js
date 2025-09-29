@@ -210,8 +210,7 @@ export default class Table {
             this.addColumn(this.selectedColumn, true);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
           label: this.api.i18n.t('Add column to right'),
           icon: IconDirectionRightDown,
           hideIf: () => {
@@ -221,8 +220,17 @@ export default class Table {
             this.addColumn(this.selectedColumn + 1, true);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
+          label: this.api.i18n.t('Merge cells'),
+          icon: IconCollapse,
+          hideIf: () => {
+            return this.tableBody.querySelectorAll(`.${CSS.cellSelected}`).length < 2;
+          },
+          onClick: () => {
+            this.mergeSelectedCells();
+            this.hideToolboxes();
+          }
+        }, {
           label: this.api.i18n.t('Column with headings'), 
           icon: IconTableWithHeadings,
           onClick: () => {
@@ -236,8 +244,7 @@ export default class Table {
             this.toggleColumnHeadingAttribute(this.selectedColumn, false);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
           label: this.api.i18n.t('Delete column'),
           icon: IconCross,
           hideIf: () => {
@@ -280,8 +287,7 @@ export default class Table {
             this.addRow(this.selectedRow, true);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
           label: this.api.i18n.t('Add row below'),
           icon: IconDirectionDownRight,
           hideIf: () => {
@@ -291,8 +297,7 @@ export default class Table {
             this.addRow(this.selectedRow + 1, true);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
           label: this.api.i18n.t('Merge cells'),
           icon: IconCollapse,
           hideIf: () => {
@@ -302,8 +307,7 @@ export default class Table {
             this.mergeSelectedCells();
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
           label: this.api.i18n.t('Row with headings'), 
           icon: IconTableWithHeadings,
           onClick: () => {
@@ -317,8 +321,7 @@ export default class Table {
             this.toggleRowHeadingAttribute(this.selectedRow, false);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
           label: this.api.i18n.t('Delete row'),
           icon: IconCross,
           hideIf: () => {
@@ -1000,7 +1003,7 @@ export default class Table {
    * @returns {void}
    */
   focusCell() {
-    this.focusedCellElem.focus();
+    this.focusedCellElem?.focus();
   }
 
   /**
@@ -1489,8 +1492,8 @@ export default class Table {
     // Merge the content of all selected cells
     const mergedContent = Array.from(selectedSet)
       .map(cellElement => cellElement.innerHTML)
+      .filter(cellElement => !cellElement.includes('data-empty="true"'))
       .filter(cellElement => cellElement.startsWith('<p'));
-
     if (!mergedContent.length) return;
 
     // Define the master cell (top-left) and expand it to cover the rectangle
