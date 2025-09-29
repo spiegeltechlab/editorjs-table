@@ -21,6 +21,7 @@ const CSS = {
   row: 'tc-row',
   rowSelected: 'tc-row--selected',
   cell: 'tc-cell',
+  cellHidden: 'tc-cell--hidden',
   cellSelected: 'tc-cell--selected',
   addRow: 'tc-add-row',
   addRowDisabled: 'tc-add-row--disabled',
@@ -65,6 +66,7 @@ export default class Table {
      */
     this.wrapper = null;
     this.table = null;
+    this.tableBody = null;
 
     /**
      * Toolbox for managing of columns
@@ -294,7 +296,7 @@ export default class Table {
           label: this.api.i18n.t('Merge cells'),
           icon: IconCollapse,
           hideIf: () => {
-            return this.table.querySelectorAll('.cell--selected').length < 2;
+            return this.tableBody.querySelectorAll(`.${CSS.cellSelected}`).length < 2;
           },
           onClick: () => {
             this.mergeSelectedCells();
@@ -363,7 +365,7 @@ export default class Table {
    * @returns {HTMLElement}
    */
   getCell(row, column) {
-    return this.table.querySelectorAll(`.${CSS.row}:nth-child(${row}) .${CSS.cell}`)[column - 1];
+    return this.tableBody.querySelectorAll(`.${CSS.row}:nth-child(${row}) .${CSS.cell}`)[column - 1];
   }
 
   /**
@@ -373,7 +375,7 @@ export default class Table {
    * @returns {HTMLElement}
    */
   getRow(row) {
-    return this.table.querySelector(`.${CSS.row}:nth-child(${row})`);
+    return this.tableBody.querySelector(`.${CSS.row}:nth-child(${row})`);
   }
 
   /**
@@ -541,7 +543,7 @@ export default class Table {
      */
     const numberOfColumns = this.numberOfColumns;
 
-    insertedRow = this.table.appendChild(rowElem);
+    insertedRow = this.tableBody.appendChild(rowElem);
     this.fillRow(insertedRow, numberOfColumns);
 
     return insertedRow;
@@ -578,7 +580,7 @@ export default class Table {
 
       insertedRow = $.insertBefore(rowElem, row);
     } else {
-      insertedRow = this.table.appendChild(rowElem);
+      insertedRow = this.tableBody.appendChild(rowElem);
     }
 
     this.fillRow(insertedRow, numberOfColumns);
@@ -687,8 +689,10 @@ export default class Table {
    * @returns {HTMLElement} wrapper - where all buttons for a table and the table itself will be
    */
   createTableWrapper() {
-    this.wrapper = $.make('table', CSS.wrapper);
-    this.table = $.make('tbody', CSS.table);
+    this.wrapper = $.make('div', CSS.wrapper);
+    this.table = $.make('table', CSS.table);
+    this.tableBody = $.make('tbody');
+    this.table.appendChild(this.tableBody);
 
     if (this.readOnly) {
       this.wrapper.classList.add(CSS.wrapperReadOnly);
@@ -828,7 +832,7 @@ export default class Table {
    * Get number of rows in the table
    */
   get numberOfRows() {
-    return this.table.childElementCount;
+    return this.tableBody.childElementCount;
   }
 
   /**
@@ -836,7 +840,7 @@ export default class Table {
    */
   get numberOfColumns() {
     if (this.numberOfRows) {
-      return this.table.querySelectorAll(`.${CSS.row}:first-child .${CSS.cell}`).length;
+      return this.tableBody.querySelectorAll(`.${CSS.row}:first-child .${CSS.cell}`).length;
     }
 
     return 0;
@@ -875,7 +879,7 @@ export default class Table {
   }
 
   /**
-   * Add the 'cell--selected' class to a cell if selection mode is active
+   * Add the selected class to a cell if selection mode is active
    * 
    * @param {HTMLElement} element - The cell element to mark as selected
    */
@@ -887,14 +891,14 @@ export default class Table {
     if (cell.tagName === 'P') {
       cell = cell.closest('th, td'); 
     }
-    cell.classList.add('cell--selected');
+    cell.classList.add(CSS.cellSelected);
   }
 
   /**
-   * Remove the 'cell--selected' class from all cells, but only if selection mode is not active
+   * Remove the selected class from all cells, but only if selection mode is not active
    */
   removeSelectedCellStyle() {
-    this.table?.querySelectorAll('.cell--selected').forEach(el => el.classList.remove('cell--selected'));
+    this.tableBody?.querySelectorAll(`.${CSS.cellSelected}`).forEach(el => el.classList.remove(CSS.cellSelected));
   }
 
   /**
@@ -952,7 +956,7 @@ export default class Table {
     const row = this.getRowByCell(cell);
 
     this.focusedCell = {
-      row: Array.from(this.table.querySelectorAll(`.${CSS.row}`)).indexOf(row) + 1,
+      row: Array.from(this.tableBody.querySelectorAll(`.${CSS.row}`)).indexOf(row) + 1,
       column: Array.from(row.querySelectorAll(`.${CSS.cell}`)).indexOf(cell) + 1
     };
   }
@@ -1031,7 +1035,7 @@ export default class Table {
       if (row > 0 && row <= this.numberOfRows) { // not sure this statement is needed. Maybe it should be fixed in getHoveredCell()
         this.toolboxRow.show(() => {
           const hoveredRowElement = this.getRow(row);
-          const { fromTopBorder } = $.getRelativeCoordsOfTwoElems(this.table, hoveredRowElement);
+          const { fromTopBorder } = $.getRelativeCoordsOfTwoElems(this.tableBody, hoveredRowElement);
           const { height } = hoveredRowElement.getBoundingClientRect();
 
           return {
@@ -1096,7 +1100,7 @@ export default class Table {
       return;
     }
 
-    const row = this.table.querySelector(`.${CSS.rowSelected}`);
+    const row = this.tableBody.querySelector(`.${CSS.rowSelected}`);
 
     if (row) {
       row.classList.remove(CSS.rowSelected);
@@ -1130,7 +1134,7 @@ export default class Table {
       return;
     }
 
-    let cells = this.table.querySelectorAll(`.${CSS.cellSelected}`);
+    let cells = this.tableBody.querySelectorAll(`.${CSS.cellSelected}`);
 
     Array.from(cells).forEach(column => {
       column.classList.remove(CSS.cellSelected);
@@ -1149,7 +1153,7 @@ export default class Table {
   getHoveredCell(event) {
     let hoveredRow = this.hoveredRow;
     let hoveredColumn = this.hoveredColumn;
-    const { width, height, x, y } = $.getCursorPositionRelativeToElement(this.table, event);
+    const { width, height, x, y } = $.getCursorPositionRelativeToElement(this.tableBody, event);
 
     // Looking for hovered column
     if (x >= 0) {
@@ -1198,7 +1202,7 @@ export default class Table {
       mid = Math.ceil((leftBorder + rightBorder) / 2);
 
       const cell = getCell(mid);
-      const relativeCoords = $.getRelativeCoordsOfTwoElems(this.table, cell);
+      const relativeCoords = $.getRelativeCoordsOfTwoElems(this.tableBody, cell);
 
       if (beforeTheLeftBorder(relativeCoords)) {
         rightBorder = mid;
@@ -1223,7 +1227,7 @@ export default class Table {
     const data = [];
 
     for (let i = 1; i <= this.numberOfRows; i++) {
-      const row = this.table.querySelector(`.${CSS.row}:nth-child(${i})`);
+      const row = this.tableBody.querySelector(`.${CSS.row}:nth-child(${i})`);
       const rowId = row.getAttribute('data-id') ?? $.generateRandomKey();
       const cells = Array.from(row.querySelectorAll(`.${CSS.cell}`));
       const isEmptyRow = cells.every(cell => !cell.textContent.trim());
@@ -1290,7 +1294,7 @@ export default class Table {
    * will be shown and the merge will be cancelled
    */
   mergeSelectedCells() {
-    const selectedCells = Array.from(this.table.querySelectorAll('.cell--selected'));
+    const selectedCells = Array.from(this.tableBody.querySelectorAll(`.${CSS.cellSelected}`));
     if (selectedCells.length < 2) {
       return;
     }
@@ -1353,7 +1357,7 @@ export default class Table {
       const rowElement = this.getRow(rowIndex + 1);
 
       for (const cellElement of rowElement.querySelectorAll(`.${CSS.cell}`)) {
-        if (!cellElement.classList.contains('tc-cell--hidden')) {
+        if (!cellElement.classList.contains(CSS.cellHidden)) {
 
           // find next free column
           const nextFreeColIndex = matrix[rowIndex].findIndex(
@@ -1456,7 +1460,7 @@ export default class Table {
     for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex++) {
       for (let colIndex = minCol; colIndex <= maxCol; colIndex++) {
         const cell = matrix[rowIndex][colIndex];
-        if (!cell || (!selectedSet.has(cell) && !cell.classList.contains('tc-cell--hidden'))) {
+        if (!cell || (!selectedSet.has(cell) && !cell.classList.contains(CSS.cellHidden))) {
           invalidSelection = true;
           break;
         }
@@ -1516,13 +1520,13 @@ export default class Table {
     masterCell.innerHTML = mergedContent.join('');
     masterCell.rowSpan = maxRow - minRow + 1;
     masterCell.colSpan = maxCol - minCol + 1;
-    masterCell.classList.remove('tc-cell--hidden');
+    masterCell.classList.remove(CSS.cellHidden);
 
     // Clear and hide the other merged cells
     selectedSet.forEach(cellElement => {
       if (cellElement !== masterCell) {
         cellElement.innerHTML = '';
-        cellElement.classList.add('tc-cell--hidden');
+        cellElement.classList.add(CSS.cellHidden);
         cellElement.rowSpan = 1;
         cellElement.colSpan = 1;
       }
