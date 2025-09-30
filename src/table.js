@@ -23,6 +23,7 @@ const CSS = {
   cell: 'tc-cell',
   cellHidden: 'tc-cell--hidden',
   cellSelected: 'tc-cell--selected',
+  cellSelectedMerge: 'tc-cell--selected-merge',
   addRow: 'tc-add-row',
   addRowDisabled: 'tc-add-row--disabled',
   addColumn: 'tc-add-column',
@@ -87,6 +88,8 @@ export default class Table {
 
     // Boolean indicating whether cells are currently being selected
     this.isSelectingCells = false;
+    this.startSelectedRow = null;
+    this.startSelectedColumn = null;
 
     // Index of last selected row via toolbox
     this.selectedRow = 0;
@@ -224,7 +227,7 @@ export default class Table {
           label: this.api.i18n.t('Merge cells'),
           icon: IconCollapse,
           hideIf: () => {
-            return this.tableBody.querySelectorAll(`.${CSS.cellSelected}`).length < 2;
+            return this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`).length < 2;
           },
           onClick: () => {
             this.mergeSelectedCells();
@@ -301,7 +304,7 @@ export default class Table {
           label: this.api.i18n.t('Merge cells'),
           icon: IconCollapse,
           hideIf: () => {
-            return this.tableBody.querySelectorAll(`.${CSS.cellSelected}`).length < 2;
+            return this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`).length < 2;
           },
           onClick: () => {
             this.mergeSelectedCells();
@@ -872,6 +875,13 @@ export default class Table {
    */
   onMouseDownListener() {
     this.isSelectingCells = true;
+
+    if (!this.startSelectedColumn) {
+      this.startSelectedColumn = this.hoveredColumn;
+    }
+    if (!this.startSelectedRow) {
+      this.startSelectedRow = this.hoveredRow;
+    }
   }
 
   /**
@@ -879,6 +889,8 @@ export default class Table {
    */
   onMouseUpListener() {
     this.isSelectingCells = false;
+    this.startSelectedColumn = null;
+    this.startSelectedRow = null;
   }
 
   /**
@@ -886,22 +898,30 @@ export default class Table {
    * 
    * @param {HTMLElement} element - The cell element to mark as selected
    */
-  addSelectedCellStyle(event) {
-    if (!this.isSelectingCells) {
+  addSelectedCellStyle(startRow, startColumn, endRow, endColumn) {
+    this.removeSelectedCellStyle();
+    if (!startRow || !startColumn || !endRow || !endColumn) {
       return;
     }
-    let cell = event.target;
-    if (cell.tagName === 'P') {
-      cell = cell.closest('th, td'); 
+
+    const minRow = Math.min(startRow, endRow);
+    const maxRow = Math.max(startRow, endRow);
+    const minColumn = Math.min(startColumn, endColumn);
+    const maxColumn = Math.max(startColumn, endColumn);
+    for (let row = minRow; row <= maxRow; row++) {
+      for (let column = minColumn; column <= maxColumn; column++) {
+        const cell = this.getCell(row, column);
+        cell.closest('th, td')?.classList.add(CSS.cellSelectedMerge);
+      }
     }
-    cell.classList.add(CSS.cellSelected);
   }
 
   /**
    * Remove the selected class from all cells, but only if selection mode is not active
    */
   removeSelectedCellStyle() {
-    this.tableBody?.querySelectorAll(`.${CSS.cellSelected}`).forEach(el => el.classList.remove(CSS.cellSelected));
+    this.selectedCells = [];
+    this.tableBody?.querySelectorAll(`.${CSS.cellSelectedMerge}`).forEach(el => el.classList.remove(CSS.cellSelectedMerge));
   }
 
   /**
@@ -915,8 +935,10 @@ export default class Table {
     this.hoveredColumn = column;
     this.hoveredRow = row;
 
-    this.addSelectedCellStyle(event);
     this.updateToolboxesPosition();
+    if (this.isSelectingCells) {
+      this.addSelectedCellStyle(this.startSelectedRow, this.startSelectedColumn, row, column);
+    }
   }
 
   /**
@@ -1297,7 +1319,7 @@ export default class Table {
    * will be shown and the merge will be cancelled
    */
   mergeSelectedCells() {
-    const selectedCells = Array.from(this.tableBody.querySelectorAll(`.${CSS.cellSelected}`));
+    const selectedCells = Array.from(this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`));
     if (selectedCells.length < 2) {
       return;
     }

@@ -1,6 +1,7 @@
 .tc-wrap {
   --color-background: #f9f9fb;
-  --color-background-selected: #e0e7ff;
+  --color-background-selected: #f9f9fb;
+  --color-background-selected-merge: #e0e7ff;
   --color-background-th: #f5f8fc;
   --color-border: #e8e8eb;
   --color-text-secondary: #7b7e89;
@@ -72,6 +73,9 @@
 
       &.tc-cell--selected {
         background: var(--color-background-selected);
+      }
+      &.tc-cell--selected-merge {
+        background: var(--color-background-selected-merge);
       }
 
       &.tc-cell--hidden {
