@@ -1,5 +1,7 @@
 .tc-wrap {
   --color-background: #f9f9fb;
+  --color-background-selected: #e0e7ff;
+  --color-background-th: #f5f8fc;
   --color-border: #e8e8eb;
   --color-text-secondary: #7b7e89;
   --cell-size: 34px;
@@ -27,7 +29,6 @@
     table-layout: fixed;
     border-collapse: collapse;
     font-size: 14px;
-    border-top: 1px solid var(--color-border);
     line-height: 1.4;
     /* Bug-fix: prose style */
     margin: 0;
@@ -52,21 +53,25 @@
 
     .tc-row {
       display: table-row;
-      border-bottom: 1px solid var(--color-border);
       &.tc-row--selected {
-        background: var(--color-background);
+        background: var(--color-background-selected);
       }
+    }
+
+    th.tc-cell {
+      background: var(--color-background-th);
+      text-align: left;
     }
 
     .tc-cell {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: wrap;
-      border-right: 1px solid var(--color-border);
-      padding: 0;
+      border: 1px solid var(--color-border);
+      padding: 4px 8px;
 
       &.tc-cell--selected {
-        background: var(--color-background);
+        background: var(--color-background-selected);
       }
 
       &.tc-cell--hidden {
@@ -77,6 +82,7 @@
         margin: 0;
         padding: 0 6px;
         height: auto;
+        outline: none;
       }
     }
   }
@@ -91,7 +97,6 @@
 
   .tc-add-column {
     display: grid;
-    border-top: 1px solid var(--color-border);
     grid-template-columns: var(--cell-size);
     grid-auto-rows: var(--cell-size);
     place-items: center;
