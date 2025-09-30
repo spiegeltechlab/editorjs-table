@@ -472,11 +472,8 @@ export default class Table {
       const isHeading = this.data?.content?.[rowIndex-1]?.content?.[colIndex]?.heading ?? false;
       const cellElem = this.createCell(isHeading);
       const newParagraph = this.createParagraph();
-      console.log(newParagraph)
       cellElem.appendChild(newParagraph);
-
       this.getRow(rowIndex).appendChild(cellElem);
-      console.log(cellElem)
     }
   };
 
