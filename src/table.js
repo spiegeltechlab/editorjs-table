@@ -437,10 +437,10 @@ export default class Table {
     let htmlString = '';
 
     contents.forEach(content => {
-      if (content.type === 'paragraph' && content.data?.text) {
+      if (content.type === 'paragraph') {
         const id = content.id || $.generateRandomKey();
         const pTag = this.createParagraph(id);
-        pTag.innerHTML = content.data.text;
+        pTag.innerHTML = content?.data?.text ?? '&shy;';
         htmlString += pTag.outerHTML;
       }
     });
@@ -472,9 +472,11 @@ export default class Table {
       const isHeading = this.data?.content?.[rowIndex-1]?.content?.[colIndex]?.heading ?? false;
       const cellElem = this.createCell(isHeading);
       const newParagraph = this.createParagraph();
+      console.log(newParagraph)
       cellElem.appendChild(newParagraph);
 
       this.getRow(rowIndex).appendChild(cellElem);
+      console.log(cellElem)
     }
   };
 
@@ -1255,11 +1257,6 @@ export default class Table {
       const row = this.tableBody.querySelector(`.${CSS.row}:nth-child(${i})`);
       const rowId = row.getAttribute('data-id') ?? $.generateRandomKey();
       const cells = Array.from(row.querySelectorAll(`.${CSS.cell}`));
-      const isEmptyRow = cells.every(cell => !cell.textContent.trim());
-
-      if (isEmptyRow) {
-        continue;
-      }
       
       data.push({
         id: rowId,
