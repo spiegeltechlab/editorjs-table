@@ -207,7 +207,7 @@ export default class Table {
           label: this.api.i18n.t('Add column to left'),
           icon: IconDirectionLeftDown,
           hideIf: () => {
-            return this.numberOfColumns === this.config.maxcols
+            return this.numberOfColumns === this.config.maxcols || this.hasMergedColumns();
           },
           onClick: () => {
             this.addColumn(this.selectedColumn, true);
@@ -217,7 +217,7 @@ export default class Table {
           label: this.api.i18n.t('Add column to right'),
           icon: IconDirectionRightDown,
           hideIf: () => {
-            return this.numberOfColumns === this.config.maxcols
+            return this.numberOfColumns === this.config.maxcols || this.hasMergedColumns();
           },
           onClick: () => {
             this.addColumn(this.selectedColumn + 1, true);
@@ -284,7 +284,7 @@ export default class Table {
           label: this.api.i18n.t('Add row above'),
           icon: IconDirectionUpRight,
           hideIf: () => {
-            return this.numberOfRows === this.config.maxrows
+            return this.numberOfRows === this.config.maxrows || this.hasMergedRows();
           },
           onClick: () => {
             this.addRow(this.selectedRow, true);
@@ -294,7 +294,7 @@ export default class Table {
           label: this.api.i18n.t('Add row below'),
           icon: IconDirectionDownRight,
           hideIf: () => {
-            return this.numberOfRows === this.config.maxrows
+            return this.numberOfRows === this.config.maxrows || this.hasMergedRows();
           },
           onClick: () => {
             this.addRow(this.selectedRow + 1, true);
@@ -345,6 +345,28 @@ export default class Table {
         this.unselectRow();
       }
     });
+  }
+
+  /**
+   * Checks if the table contains at least one cell with a rowspan greater than 1.
+   *
+   * @returns {boolean} Returns `true` if any cell spans multiple rows,
+   *                    otherwise `false`.
+   */
+  hasMergedRows() {
+    return Array.from(this.tableBody.querySelectorAll('td, th'))
+      .some(cell => cell.rowSpan > 1);
+  }
+
+  /**
+   * Checks if the table contains at least one cell with a colspan greater than 1.
+   *
+   * @returns {boolean} Returns `true` if any cell spans multiple columns,
+   *                    otherwise `false`.
+   */
+  hasMergedColumns() {
+    return Array.from(this.tableBody.querySelectorAll('td, th'))
+      .some(cell => cell.colSpan > 1);
   }
 
   /**
