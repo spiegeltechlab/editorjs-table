@@ -1560,7 +1560,7 @@ export default class Table {
     }
 
     const newParagraph = this.createParagraph();
-    newParagraph.innerHTML = mergedContent.join('<br>');
+    newParagraph.innerHTML = mergedContent.filter((content) => !!content.trim()).join('<br>');
     masterCell.innerHTML = newParagraph.outerHTML;
     masterCell.rowSpan = maxRow - minRow + 1;
     masterCell.colSpan = maxCol - minCol + 1;
