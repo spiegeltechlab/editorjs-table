@@ -59,7 +59,7 @@ export default class Table {
   constructor(readOnly, api, data, config) {
     this.readOnly = readOnly;
     this.api = api;
-    this.data = data;
+    this.data = this.normalizeTableData(data);
     this.config = config;
 
     /**
@@ -155,6 +155,55 @@ export default class Table {
     }
   }
 
+  normalizeTableData(data) {
+    const rows = data.content;
+    const rowspanTracker = []; // tracks open rowspans for each column
+
+    return {
+      ...data,
+      content: rows.map((row, rowIndex) => {
+        const newCells = [];
+        let colIndex = 0;
+
+        for (const cell of row.content) {
+          // Insert placeholder cells for open rowspans from previous rows
+          while (rowspanTracker[colIndex] > 0) {
+            newCells.push({ type: 'placeholder' });
+            rowspanTracker[colIndex]--;
+            colIndex++;
+          }
+
+          const colspan = cell.colspan || 1;
+          const rowspan = cell.rowspan || 1;
+          newCells.push(cell);
+          
+          // Add placeholders for colspan > 1
+          for (let i = 1; i < colspan; i++) {
+            newCells.push({ type: 'placeholder' });
+          }
+
+          // Track rowspans for upcoming rows
+          if (rowspan > 1) {
+            for (let i = 0; i < colspan; i++) {
+              rowspanTracker[colIndex + i] = (rowspanTracker[colIndex + i] || 0) + (rowspan - 1);
+            }
+          }
+
+          colIndex += colspan;
+        }
+
+      // Fill placeholders at the end of the row for any remaining open rowspans
+        while (rowspanTracker[colIndex] > 0) {
+          newCells.push({ type: 'placeholder' });
+          rowspanTracker[colIndex]--;
+          colIndex++;
+        }
+
+        return { ...row, content: newCells };
+      }),
+    };
+  }
+
   /**
    * Returns the rendered table wrapper
    *
@@ -204,6 +253,17 @@ export default class Table {
       cssModifier: 'column',
       items: [
         {
+          label: this.api.i18n.t('Merge cells'),
+          icon: IconCollapse,
+          hideIf: () => {
+            return this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`).length < 2;
+          },
+          onClick: () => {
+            this.mergeCells();
+            this.removeSelectedCellStyle();
+            this.hideToolboxes();
+          }
+        }, {
           label: this.api.i18n.t('Add column to left'),
           icon: IconDirectionLeftDown,
           hideIf: () => {
@@ -221,16 +281,6 @@ export default class Table {
           },
           onClick: () => {
             this.addColumn(this.selectedColumn + 1, true);
-            this.hideToolboxes();
-          }
-        }, {
-          label: this.api.i18n.t('Merge cells'),
-          icon: IconCollapse,
-          hideIf: () => {
-            return this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`).length < 2;
-          },
-          onClick: () => {
-            this.mergeSelectedCells();
             this.hideToolboxes();
           }
         }, {
@@ -281,6 +331,17 @@ export default class Table {
       cssModifier: 'row',
       items: [
         {
+          label: this.api.i18n.t('Merge cells'),
+          icon: IconCollapse,
+          hideIf: () => {
+            return this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`).length < 2;
+          },
+          onClick: () => {
+            this.mergeCells();
+            this.removeSelectedCellStyle();
+            this.hideToolboxes();
+          }
+        }, {
           label: this.api.i18n.t('Add row above'),
           icon: IconDirectionUpRight,
           hideIf: () => {
@@ -298,16 +359,6 @@ export default class Table {
           },
           onClick: () => {
             this.addRow(this.selectedRow + 1, true);
-            this.hideToolboxes();
-          }
-        }, {
-          label: this.api.i18n.t('Merge cells'),
-          icon: IconCollapse,
-          hideIf: () => {
-            return this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`).length < 2;
-          },
-          onClick: () => {
-            this.mergeSelectedCells();
             this.hideToolboxes();
           }
         }, {
@@ -354,19 +405,23 @@ export default class Table {
    *                    otherwise `false`.
    */
   hasMergedRows() {
-    return Array.from(this.tableBody.querySelectorAll('td, th'))
-      .some(cell => cell.rowSpan > 1);
+    setTimeout(() => {
+      return Array.from(this.tableBody.querySelectorAll(`.${CSS.cellSelected}`))
+        .some(cell => cell.rowSpan > 1);
+    }, 0);
   }
 
-  /**
+    /**
    * Checks if the table contains at least one cell with a colspan greater than 1.
    *
    * @returns {boolean} Returns `true` if any cell spans multiple columns,
    *                    otherwise `false`.
    */
   hasMergedColumns() {
-    return Array.from(this.tableBody.querySelectorAll('td, th'))
-      .some(cell => cell.colSpan > 1);
+    setTimeout(() => {
+      return Array.from(this.tableBody.querySelectorAll(`.${CSS.cellSelected}`))
+        .some(cell => cell.colSpan > 1);
+    }, 0);
   }
 
   /**
@@ -435,6 +490,10 @@ export default class Table {
    */
   setCellContent(row, column, content) {
     const cell = this.getCell(row, column);
+    if (content.type === 'placeholder') {
+      cell.classList.add(CSS.cellHidden);
+      return;
+    }
     cell.colSpan = content?.colspan ?? 1;
     cell.rowSpan = content?.rowspan ?? 1;
     const cellId = content?.id ?? $.generateRandomKey();
@@ -483,14 +542,6 @@ export default class Table {
      * Iterate all rows and add a new cell to them for creating a column
      */
     for (let rowIndex = 1; rowIndex <= this.numberOfRows; rowIndex++) {
-      // Check whether the table is drawn based on existing content
-      if (
-        this.data.content.length && 
-        this.data.content[rowIndex-1]?.content.length && 
-        !this.data.content[rowIndex-1]?.content?.[colIndex]
-      ) {
-          continue;
-      }
       const isHeading = this.data?.content?.[rowIndex-1]?.content?.[colIndex]?.heading ?? false;
       const cellElem = this.createCell(isHeading);
       const newParagraph = this.createParagraph();
@@ -932,6 +983,7 @@ export default class Table {
     for (let row = minRow; row <= maxRow; row++) {
       for (let column = minColumn; column <= maxColumn; column++) {
         const cell = this.getCell(row, column);
+        if (!cell) { continue }
         cell.closest('th, td')?.classList.add(CSS.cellSelectedMerge);
       }
     }
@@ -951,7 +1003,14 @@ export default class Table {
    * @param {Event} event - mouse move event
    */
   onMouseMoveInTable(event) {
-    const { row, column } = this.getHoveredCell(event);
+    const hoveredCell = event.target.closest('th, td');
+    if (!hoveredCell) return;
+
+    const hoveredRow = hoveredCell.closest('tr');
+    if (!hoveredRow) return;
+
+    const column = hoveredCell.cellIndex + 1;
+    const row = hoveredRow.sectionRowIndex + 1;
 
     this.hoveredColumn = column;
     this.hoveredRow = row;
@@ -1068,7 +1127,7 @@ export default class Table {
    */
   updateToolboxesPosition(row = this.hoveredRow, column = this.hoveredColumn) {
     if (!this.isColumnMenuShowing) {
-      if (column > 0 && column <= this.numberOfColumns) { // not sure this statement is needed. Maybe it should be fixed in getHoveredCell()
+      if (column > 0 && column <= this.numberOfColumns) {
         this.toolboxColumn.show(() => {
           return {
             left: `calc((100% - var(--cell-size)) / (${this.numberOfColumns} * 2) * (1 + (${column} - 1) * 2))`
@@ -1078,7 +1137,7 @@ export default class Table {
     }
 
     if (!this.isRowMenuShowing) {
-      if (row > 0 && row <= this.numberOfRows) { // not sure this statement is needed. Maybe it should be fixed in getHoveredCell()
+      if (row > 0 && row <= this.numberOfRows) {
         this.toolboxRow.show(() => {
           const hoveredRowElement = this.getRow(row);
           const { fromTopBorder } = $.getRelativeCoordsOfTwoElems(this.tableBody, hoveredRowElement);
@@ -1190,81 +1249,6 @@ export default class Table {
   }
 
   /**
-   * Calculates the row and column that the cursor is currently hovering over
-   * The search was optimized from O(n) to O (log n) via bin search to reduce the number of calculations
-   *
-   * @param {Event} event - mousemove event
-   * @returns hovered cell coordinates as an integer row and column
-   */
-  getHoveredCell(event) {
-    let hoveredRow = this.hoveredRow;
-    let hoveredColumn = this.hoveredColumn;
-    const { width, height, x, y } = $.getCursorPositionRelativeToElement(this.tableBody, event);
-
-    // Looking for hovered column
-    if (x >= 0) {
-      hoveredColumn = this.binSearch(
-        this.numberOfColumns,
-        (mid) => this.getCell(1, mid),
-        ({ fromLeftBorder }) => x < fromLeftBorder,
-        ({ fromRightBorder }) => x > (width - fromRightBorder)
-      );
-    }
-
-    // Looking for hovered row
-    if (y >= 0) {
-      hoveredRow = this.binSearch(
-        this.numberOfRows,
-        (mid) => this.getCell(mid, 1),
-        ({ fromTopBorder }) => y < fromTopBorder,
-        ({ fromBottomBorder }) => y > (height - fromBottomBorder)
-      );
-    }
-
-    return {
-      row: hoveredRow || this.hoveredRow,
-      column: hoveredColumn || this.hoveredColumn
-    };
-  }
-
-  /**
-   * Looks for the index of the cell the mouse is hovering over.
-   * Cells can be represented as ordered intervals with left and
-   * right (upper and lower for rows) borders inside the table, if the mouse enters it, then this is our index
-   *
-   * @param {number} numberOfCells - upper bound of binary search
-   * @param {function} getCell - function to take the currently viewed cell
-   * @param {function} beforeTheLeftBorder - determines the cursor position, to the left of the cell or not
-   * @param {function} afterTheRightBorder - determines the cursor position, to the right of the cell or not
-   * @returns {number}
-   */
-  binSearch(numberOfCells, getCell, beforeTheLeftBorder, afterTheRightBorder) {
-    let leftBorder = 0;
-    let rightBorder = numberOfCells + 1;
-    let totalIterations = 0;
-    let mid;
-
-    while (leftBorder < rightBorder - 1 && totalIterations < 10) {
-      mid = Math.ceil((leftBorder + rightBorder) / 2);
-
-      const cell = getCell(mid);
-      const relativeCoords = $.getRelativeCoordsOfTwoElems(this.tableBody, cell);
-
-      if (beforeTheLeftBorder(relativeCoords)) {
-        rightBorder = mid;
-      } else if (afterTheRightBorder(relativeCoords)) {
-        leftBorder = mid;
-      } else {
-        break;
-      }
-
-      totalIterations++;
-    }
-
-    return mid;
-  }
-
-  /**
    * Collects data from cells into a two-dimensional array
    *
    * @returns {string[][]}
@@ -1280,6 +1264,12 @@ export default class Table {
       data.push({
         id: rowId,
         content: cells.map(cell => {
+          if (cell.classList.contains(CSS.cellHidden)) {
+            return {
+              content: []
+            };
+          }
+
           const cellData = {
             id: cell.getAttribute('data-id') || $.generateRandomKey(),
             content: this.extractParagraphData(cell),
@@ -1334,11 +1324,9 @@ export default class Table {
    * Selection must form a contiguous rectangular block; otherwise, a notification
    * will be shown and the merge will be cancelled
    */
-  mergeSelectedCells() {
+  mergeCells() {
     const selectedCells = Array.from(this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`));
-    if (selectedCells.length < 2) {
-      return;
-    }
+    if (selectedCells.length < 2) return;
 
     const rows = this.numberOfRows;
     const cols = this.numberOfColumns;
@@ -1510,22 +1498,7 @@ export default class Table {
         break;
       }
     }
-
-    if (invalidSelection) {
-      this.api.notifier.show({
-        message: 'Invalid selection: please select a contiguous rectangle.',
-        style: 'error'
-      });
-
-      const event = new CustomEvent('editorjs-custom-table-merge-failed', {
-        detail: {
-          reason: 'Invalid selection: please select a contiguous rectangle.'
-        },
-        bubbles: true
-      });
-      this.wrapper.dispatchEvent(event);
-      return;
-    }
+    if (invalidSelection) return
 
     // Merge the content of all selected cells
     const mergedContent = Array.from(selectedSet)
