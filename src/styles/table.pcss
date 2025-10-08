@@ -1,7 +1,7 @@
 .tc-wrap {
   --color-background: #f9f9fb;
   --color-background-selected: #f9f9fb;
-  --color-background-selected-merge: #e0e7ff;
+  --color-background-selected-merge: #eef2ff;
   --color-background-th: #f5f8fc;
   --color-border: #e8e8eb;
   --color-text-secondary: #7b7e89;
@@ -21,6 +21,10 @@
   margin-top: var(--toolbox-icon-size);
   /* Bug-fix: https://github.com/editor-js/table/issues/175 */
   z-index: 0;
+
+  &:has(.tc-popover--opened) {
+    z-index: 5;
+  }
 
   .tc-table {
     position: relative;

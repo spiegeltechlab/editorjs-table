@@ -301,7 +301,7 @@ export default class Table {
           label: this.api.i18n.t('Delete column'),
           icon: IconCross,
           hideIf: () => {
-            return this.numberOfColumns === 1;
+            return this.numberOfColumns === 1 || this.hasMergedColumns();
           },
           confirmationRequired: true,
           onClick: () => {
@@ -379,7 +379,7 @@ export default class Table {
           label: this.api.i18n.t('Delete row'),
           icon: IconCross,
           hideIf: () => {
-            return this.numberOfRows === 1;
+            return this.numberOfRows === 1 || this.hasMergedRows();
           },
           confirmationRequired: true,
           onClick: () => {
