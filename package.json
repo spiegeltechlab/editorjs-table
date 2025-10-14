@@ -8,11 +8,11 @@
     "dist"
   ],
   "main": "./dist/table.umd.js",
-  "module": "./dist/table.mjs",
+  "module": "./dist/table.esm.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/table.mjs",
+      "import": "./dist/table.esm.js",
       "require": "./dist/table.umd.js",
       "types": "./dist/index.d.ts"
     }

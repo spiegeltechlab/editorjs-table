@@ -7,7 +7,10 @@ import {
   IconDirectionRightDown,
   IconDirectionUpRight,
   IconDirectionDownRight,
+  IconCollapse,
   IconCross,
+  IconTableWithHeadings,
+  IconTableWithoutHeadings,
   IconPlus
 } from '@codexteam/icons';
 
@@ -16,10 +19,11 @@ const CSS = {
   wrapperReadOnly: 'tc-wrap--readonly',
   table: 'tc-table',
   row: 'tc-row',
-  withHeadings: 'tc-table--heading',
   rowSelected: 'tc-row--selected',
   cell: 'tc-cell',
+  cellHidden: 'tc-cell--hidden',
   cellSelected: 'tc-cell--selected',
+  cellSelectedMerge: 'tc-cell--selected-merge',
   addRow: 'tc-add-row',
   addRowDisabled: 'tc-add-row--disabled',
   addColumn: 'tc-add-column',
@@ -29,8 +33,7 @@ const CSS = {
 /**
  * @typedef {object} TableConfig
  * @description Tool's config from Editor
- * @property {boolean} withHeadings — Uses the first line as headings
- * @property {string[][]} withHeadings — two-dimensional array with table contents
+ * @property {string[][]} content — two-dimensional array with table contents
  */
 
 /**
@@ -56,7 +59,7 @@ export default class Table {
   constructor(readOnly, api, data, config) {
     this.readOnly = readOnly;
     this.api = api;
-    this.data = data;
+    this.data = this.normalizeTableData(data);
     this.config = config;
 
     /**
@@ -64,6 +67,7 @@ export default class Table {
      */
     this.wrapper = null;
     this.table = null;
+    this.tableBody = null;
 
     /**
      * Toolbox for managing of columns
@@ -82,16 +86,16 @@ export default class Table {
     // Current hovered column index
     this.hoveredColumn = 0;
 
+    // Boolean indicating whether cells are currently being selected
+    this.isSelectingCells = false;
+    this.startSelectedRow = null;
+    this.startSelectedColumn = null;
+
     // Index of last selected row via toolbox
     this.selectedRow = 0;
 
     // Index of last selected column via toolbox
     this.selectedColumn = 0;
-
-    // Additional settings for the table
-    this.tunes = {
-      withHeadings: false
-    };
 
     /**
      * Resize table to match config/data size
@@ -112,6 +116,13 @@ export default class Table {
       column: 0
     };
 
+    /**
+     * Global double click listener allows to delegate clicks on some elements
+     */
+    this.doubleDocumentClicked = () => {
+      this.removeSelectedCellStyle();
+    }
+  
     /**
      * Global click listener allows to delegate clicks on some elements
      */
@@ -144,6 +155,55 @@ export default class Table {
     }
   }
 
+  normalizeTableData(data) {
+    const rows = data.content;
+    const rowspanTracker = []; // tracks open rowspans for each column
+
+    return {
+      ...data,
+      content: rows.map((row, rowIndex) => {
+        const newCells = [];
+        let colIndex = 0;
+
+        for (const cell of row.content) {
+          // Insert placeholder cells for open rowspans from previous rows
+          while (rowspanTracker[colIndex] > 0) {
+            newCells.push({ type: 'placeholder' });
+            rowspanTracker[colIndex]--;
+            colIndex++;
+          }
+
+          const colspan = cell.colspan || 1;
+          const rowspan = cell.rowspan || 1;
+          newCells.push(cell);
+          
+          // Add placeholders for colspan > 1
+          for (let i = 1; i < colspan; i++) {
+            newCells.push({ type: 'placeholder' });
+          }
+
+          // Track rowspans for upcoming rows
+          if (rowspan > 1) {
+            for (let i = 0; i < colspan; i++) {
+              rowspanTracker[colIndex + i] = (rowspanTracker[colIndex + i] || 0) + (rowspan - 1);
+            }
+          }
+
+          colIndex += colspan;
+        }
+
+      // Fill placeholders at the end of the row for any remaining open rowspans
+        while (rowspanTracker[colIndex] > 0) {
+          newCells.push({ type: 'placeholder' });
+          rowspanTracker[colIndex]--;
+          colIndex++;
+        }
+
+        return { ...row, content: newCells };
+      }),
+    };
+  }
+
   /**
    * Returns the rendered table wrapper
    *
@@ -160,6 +220,9 @@ export default class Table {
     // set the listener to close toolboxes when click outside
     document.addEventListener('click', this.documentClicked);
 
+    // set the listener to remove the selected cells on double click
+    document.addEventListener('dblclick', this.doubleDocumentClicked);
+
     // Update toolboxes position depending on the mouse movements
     this.table.addEventListener('mousemove', throttled(150, (event) => this.onMouseMoveInTable(event)), { passive: true });
 
@@ -171,6 +234,12 @@ export default class Table {
 
     // Determine the position of the cell in focus
     this.table.addEventListener('focusin', event => this.focusInTableListener(event));
+
+    // Start selecting cells (e.g., for multi-cell operations
+    this.table.addEventListener('mousedown', event => this.onMouseDownListener(event));
+
+    // Stop selecting cells
+    this.table.addEventListener('mouseup', event => this.onMouseUpListener(event));
   }
 
   /**
@@ -184,32 +253,55 @@ export default class Table {
       cssModifier: 'column',
       items: [
         {
+          label: this.api.i18n.t('Merge cells'),
+          icon: IconCollapse,
+          hideIf: () => {
+            return this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`).length < 2;
+          },
+          onClick: () => {
+            this.mergeCells();
+            this.removeSelectedCellStyle();
+            this.hideToolboxes();
+          }
+        }, {
           label: this.api.i18n.t('Add column to left'),
           icon: IconDirectionLeftDown,
           hideIf: () => {
-            return this.numberOfColumns === this.config.maxcols
+            return this.numberOfColumns === this.config.maxcols || this.hasMergedColumns();
           },
           onClick: () => {
             this.addColumn(this.selectedColumn, true);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
           label: this.api.i18n.t('Add column to right'),
           icon: IconDirectionRightDown,
           hideIf: () => {
-            return this.numberOfColumns === this.config.maxcols
+            return this.numberOfColumns === this.config.maxcols || this.hasMergedColumns();
           },
           onClick: () => {
             this.addColumn(this.selectedColumn + 1, true);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
+          label: this.api.i18n.t('Column with headings'), 
+          icon: IconTableWithHeadings,
+          onClick: () => {
+            this.toggleColumnHeadingAttribute(this.selectedColumn, true);
+            this.hideToolboxes();
+          }
+        }, {
+          label: this.api.i18n.t('Column without headings'),
+          icon: IconTableWithoutHeadings,
+          onClick: () => {
+            this.toggleColumnHeadingAttribute(this.selectedColumn, false);
+            this.hideToolboxes();
+          }
+        }, {
           label: this.api.i18n.t('Delete column'),
           icon: IconCross,
           hideIf: () => {
-            return this.numberOfColumns === 1;
+            return this.numberOfColumns === 1 || this.hasMergedColumns();
           },
           confirmationRequired: true,
           onClick: () => {
@@ -239,32 +331,55 @@ export default class Table {
       cssModifier: 'row',
       items: [
         {
+          label: this.api.i18n.t('Merge cells'),
+          icon: IconCollapse,
+          hideIf: () => {
+            return this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`).length < 2;
+          },
+          onClick: () => {
+            this.mergeCells();
+            this.removeSelectedCellStyle();
+            this.hideToolboxes();
+          }
+        }, {
           label: this.api.i18n.t('Add row above'),
           icon: IconDirectionUpRight,
           hideIf: () => {
-            return this.numberOfRows === this.config.maxrows
+            return this.numberOfRows === this.config.maxrows || this.hasMergedRows();
           },
           onClick: () => {
             this.addRow(this.selectedRow, true);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
           label: this.api.i18n.t('Add row below'),
           icon: IconDirectionDownRight,
           hideIf: () => {
-            return this.numberOfRows === this.config.maxrows
+            return this.numberOfRows === this.config.maxrows || this.hasMergedRows();
           },
           onClick: () => {
             this.addRow(this.selectedRow + 1, true);
             this.hideToolboxes();
           }
-        },
-        {
+        }, {
+          label: this.api.i18n.t('Row with headings'), 
+          icon: IconTableWithHeadings,
+          onClick: () => {
+            this.toggleRowHeadingAttribute(this.selectedRow, true);
+            this.hideToolboxes();
+          }
+        }, {
+          label: this.api.i18n.t('Row without headings'),
+          icon: IconTableWithoutHeadings,
+          onClick: () => {
+            this.toggleRowHeadingAttribute(this.selectedRow, false);
+            this.hideToolboxes();
+          }
+        }, {
           label: this.api.i18n.t('Delete row'),
           icon: IconCross,
           hideIf: () => {
-            return this.numberOfRows === 1;
+            return this.numberOfRows === 1 || this.hasMergedRows();
           },
           confirmationRequired: true,
           onClick: () => {
@@ -281,6 +396,32 @@ export default class Table {
         this.unselectRow();
       }
     });
+  }
+
+  /**
+   * Checks if the table contains at least one cell with a rowspan greater than 1.
+   *
+   * @returns {boolean} Returns `true` if any cell spans multiple rows,
+   *                    otherwise `false`.
+   */
+  hasMergedRows() {
+    setTimeout(() => {
+      return Array.from(this.tableBody.querySelectorAll(`.${CSS.cellSelected}`))
+        .some(cell => cell.rowSpan > 1);
+    }, 0);
+  }
+
+    /**
+   * Checks if the table contains at least one cell with a colspan greater than 1.
+   *
+   * @returns {boolean} Returns `true` if any cell spans multiple columns,
+   *                    otherwise `false`.
+   */
+  hasMergedColumns() {
+    setTimeout(() => {
+      return Array.from(this.tableBody.querySelectorAll(`.${CSS.cellSelected}`))
+        .some(cell => cell.colSpan > 1);
+    }, 0);
   }
 
   /**
@@ -307,7 +448,7 @@ export default class Table {
    * @returns {HTMLElement}
    */
   getCell(row, column) {
-    return this.table.querySelectorAll(`.${CSS.row}:nth-child(${row}) .${CSS.cell}`)[column - 1];
+    return this.tableBody.querySelectorAll(`.${CSS.row}:nth-child(${row}) .${CSS.cell}`)[column - 1];
   }
 
   /**
@@ -317,7 +458,7 @@ export default class Table {
    * @returns {HTMLElement}
    */
   getRow(row) {
-    return this.table.querySelector(`.${CSS.row}:nth-child(${row})`);
+    return this.tableBody.querySelector(`.${CSS.row}:nth-child(${row})`);
   }
 
   /**
@@ -349,9 +490,65 @@ export default class Table {
    */
   setCellContent(row, column, content) {
     const cell = this.getCell(row, column);
-
-    cell.innerHTML = content;
+    if (content.type === 'placeholder') {
+      cell.classList.add(CSS.cellHidden);
+      return;
+    }
+    cell.colSpan = content?.colspan ?? 1;
+    cell.rowSpan = content?.rowspan ?? 1;
+    const cellId = content?.id ?? $.generateRandomKey();
+    cell.setAttribute('data-id', cellId);
+    cell.innerHTML = this.convertParagraphDataToHtmlString(content.content ?? []);
   }
+
+  /**
+   * Converts structured paragraph content objects into an HTML string with <p> tags.
+   *
+   * @param {Array<Object>} contents - An array of content objects with the following structure:
+   *    [
+   *      {
+   *        id: string | null,        // optional unique identifier
+   *        type: 'paragraph',        // content type, expected to be 'paragraph'
+   *        data: { text: string }    // text content for the paragraph
+   *      }
+   *    ]
+   * @returns {string} - A single HTML string containing <p> elements with data-id attributes.
+   */
+  convertParagraphDataToHtmlString(contents) {
+    let htmlString = '';
+
+    contents.forEach(content => {
+      if (content.type === 'paragraph') {
+        const id = content.id || $.generateRandomKey();
+        const pTag = this.createParagraph(id);
+        pTag.innerHTML = content?.data?.text ?? '&shy;';
+        htmlString += pTag.outerHTML;
+      }
+    });
+
+    return htmlString;
+  }
+
+  /**
+   * Adds an initial column to the table by iterating through all rows
+   * and inserting a new cell into each one.
+   *
+   * Each newly added cell will contain a paragraph element for text input.
+   *
+   * @returns {void}
+   */
+  drawInitialColumn(colIndex) {
+    /**
+     * Iterate all rows and add a new cell to them for creating a column
+     */
+    for (let rowIndex = 1; rowIndex <= this.numberOfRows; rowIndex++) {
+      const isHeading = this.data?.content?.[rowIndex-1]?.content?.[colIndex]?.heading ?? false;
+      const cellElem = this.createCell(isHeading);
+      const newParagraph = this.createParagraph();
+      cellElem.appendChild(newParagraph);
+      this.getRow(rowIndex).appendChild(cellElem);
+    }
+  };
 
   /**
    * Add column in table on index place
@@ -369,13 +566,14 @@ export default class Table {
     if (this.config && this.config.maxcols && this.numberOfColumns >= this.config.maxcols) {
       return;
   }
-
     /**
      * Iterate all rows and add a new cell to them for creating a column
      */
     for (let rowIndex = 1; rowIndex <= this.numberOfRows; rowIndex++) {
       let cell;
       const cellElem = this.createCell();
+      const newParagraph = this.createParagraph();
+      cellElem.appendChild(newParagraph);
 
       if (columnIndex > 0 && columnIndex <= numberOfColumns) {
         cell = this.getCell(rowIndex, columnIndex);
@@ -401,7 +599,32 @@ export default class Table {
     if (this.config?.maxcols && this.numberOfColumns > this.config.maxcols - 1 && addColButton ){
       addColButton.classList.add(CSS.addColumnDisabled);
     }
-    this.addHeadingAttrToFirstRow();
+  };
+
+  /**
+   * Draws the initial row in the table with the given row content.
+   *
+   * @param {Object} rowContent - Data used to populate the initial row.
+   * @param {string} [rowContent.id] - Optional ID for the row; a random key will be generated if missing or empty.
+   * @returns {HTMLElement} row
+   */
+  drawInitialRow(rowContent) {
+    let insertedRow;
+    const rowElem = $.make('tr', CSS.row);
+    const rowId = rowContent?.id?.trim() ? rowContent.id : $.generateRandomKey();
+    rowElem.setAttribute('data-id', rowId);
+
+    /**
+     * We remember the number of columns, because it is calculated
+     * by the number of cells in the first row
+     * It is necessary that the first line is filled in correctly
+     */
+    const numberOfColumns = this.numberOfColumns;
+
+    insertedRow = this.tableBody.appendChild(rowElem);
+    this.fillRow(insertedRow, numberOfColumns);
+
+    return insertedRow;
   };
 
   /**
@@ -413,18 +636,15 @@ export default class Table {
    */
   addRow(index = -1, setFocus = false) {
     let insertedRow;
-    let rowElem = $.make('div', CSS.row);
-
-    if (this.tunes.withHeadings) {
-      this.removeHeadingAttrFromFirstRow();
-    }
+    const rowElem = $.make('tr', CSS.row);
+    rowElem.setAttribute('data-id', $.generateRandomKey());
 
     /**
      * We remember the number of columns, because it is calculated
      * by the number of cells in the first row
      * It is necessary that the first line is filled in correctly
      */
-    let numberOfColumns = this.numberOfColumns;
+    const numberOfColumns = this.numberOfColumns;
      /**
       * Check if the number of rows has reached the maximum allowed rows specified in the configuration,
       * and if so, exit the function to prevent adding more columns beyond the limit.
@@ -434,18 +654,14 @@ export default class Table {
     }
 
     if (index > 0 && index <= this.numberOfRows) {
-      let row = this.getRow(index);
+      const row = this.getRow(index);
 
       insertedRow = $.insertBefore(rowElem, row);
     } else {
-      insertedRow = this.table.appendChild(rowElem);
+      insertedRow = this.tableBody.appendChild(rowElem);
     }
 
     this.fillRow(insertedRow, numberOfColumns);
-
-    if (this.tunes.withHeadings) {
-      this.addHeadingAttrToFirstRow();
-    }
 
     const insertedRowFirstCell = this.getRowFirstCell(insertedRow);
 
@@ -492,8 +708,56 @@ export default class Table {
     if (addRowButton) {
       addRowButton.classList.remove(CSS.addRowDisabled);
     }
+  }
 
-    this.addHeadingAttrToFirstRow();
+  /**
+   * Toggles all cells in a given column between <th> and <td> elements.
+   *
+   * - Preserves all attributes and content of each cell.
+   * - Converts <td> → <th> if `toHeading` is true, otherwise <th> → <td>.
+   *
+   * @param {number} colIndex - The zero-based index of the column to modify.
+   * @param {boolean} [toHeading=false] - If true, converts <td> to <th>; otherwise <th> to <td>.
+   */
+  toggleColumnHeadingAttribute(colIndex, toHeading = false) {
+    const newTagName = toHeading ? 'th' : 'td';
+
+    for (let i = 1; i <= this.numberOfRows; i++) {
+      const cell = this.getCell(i, colIndex);
+      if (!cell) continue;
+
+      const newElem = document.createElement(newTagName);
+      for (let { name, value } of cell.attributes) {
+        newElem.setAttribute(name, value);
+      }
+      newElem.innerHTML = cell.innerHTML;
+      cell.replaceWith(newElem);
+    }
+  }
+
+  /**
+   * Toggles all cells in a given table row between <th> and <td> elements.
+   *
+   * - Preserves all attributes and content of each cell.
+   * - Converts <td> → <th> if `toHeading` is true, otherwise <th> → <td>.
+   *
+   * @param {number} rowIndex - The zero-based index of the row to modify.
+   * @param {boolean} [toHeading=false] - If true, converts <td> to <th>; otherwise <th> to <td>.
+   */
+  toggleRowHeadingAttribute(rowIndex, toHeading = false) {
+    const selectedRow = this.getRow(rowIndex);
+
+    const fromTag = toHeading ? 'td' : 'th';
+    const toTag = toHeading ? 'th' : 'td';
+
+    selectedRow.querySelectorAll(fromTag).forEach(origElem => {
+      const newElem = document.createElement(toTag);
+      for (let { name, value } of origElem.attributes) {
+        newElem.setAttribute(name, value);
+      }
+      newElem.innerHTML = origElem.innerHTML;
+      origElem.replaceWith(newElem);
+    });
   }
 
   /**
@@ -504,7 +768,9 @@ export default class Table {
    */
   createTableWrapper() {
     this.wrapper = $.make('div', CSS.wrapper);
-    this.table = $.make('div', CSS.table);
+    this.table = $.make('table', CSS.table);
+    this.tableBody = $.make('tbody');
+    this.table.appendChild(this.tableBody);
 
     if (this.readOnly) {
       this.wrapper.classList.add(CSS.wrapperReadOnly);
@@ -535,9 +801,9 @@ export default class Table {
   computeInitialSize() {
     const content = this.data && this.data.content;
     const isValidArray = Array.isArray(content);
-    const isNotEmptyArray = isValidArray ? content.length : false;
     const contentRows = isValidArray ? content.length : undefined;
-    const contentCols = isNotEmptyArray ? content[0].length : undefined;
+    const maxContentLength = content.length ? Math.max(...content.map(item => item.content.length)) : undefined;
+    const contentCols = maxContentLength;
     const parsedRows = Number.parseInt(this.config && this.config.rows);
     const parsedCols = Number.parseInt(this.config && this.config.cols);
 
@@ -566,11 +832,12 @@ export default class Table {
     const { rows, cols } = this.computeInitialSize();
 
     for (let i = 0; i < rows; i++) {
-      this.addRow();
+      const rowContent = this.data?.content?.[i];
+      this.drawInitialRow(rowContent);
     }
 
     for (let i = 0; i < cols; i++) {
-      this.addColumn();
+      this.drawInitialColumn(i);
     }
   }
 
@@ -581,14 +848,13 @@ export default class Table {
    */
   fill() {
     const data = this.data;
-
-    if (data && data.content) {
-      for (let i = 0; i < data.content.length; i++) {
-        for (let j = 0; j < data.content[i].length; j++) {
-          this.setCellContent(i + 1, j + 1, data.content[i][j]);
-        }
-      }
-    }
+    const rows = data.content ?? [];
+    rows.forEach((row, rowIndex) => {
+      const cells = row.content ?? [];
+      cells.forEach((cell, cellIndex) => {
+        this.setCellContent(rowIndex + 1, cellIndex + 1, cell);
+      })
+    });
   }
 
   /**
@@ -600,7 +866,8 @@ export default class Table {
   fillRow(row, numberOfColumns) {
     for (let i = 1; i <= numberOfColumns; i++) {
       const newCell = this.createCell();
-
+      const newParagraph = this.createParagraph();
+      newCell.appendChild(newParagraph);
       row.appendChild(newCell);
     }
   }
@@ -610,17 +877,40 @@ export default class Table {
    *
    * @return {Element}
    */
-  createCell() {
-    return $.make('div', CSS.cell, {
-      contentEditable: !this.readOnly
-    });
+  createCell(isHeading = false) {
+    const cellTag = isHeading ? 'th' : 'td';
+    return $.make(cellTag, CSS.cell,
+      {
+        colSpan: 1,
+        rowSpan: 1,
+      },
+      {
+        id: $.generateRandomKey()
+      }
+    );
+  }
+
+  /**
+   * Creating a paragraph element
+   *
+   * @return {Element}
+   */
+  createParagraph(id) {
+    return $.make('p', undefined,
+      {
+        contentEditable: !this.readOnly
+      },
+      {
+        id: id ?? $.generateRandomKey()
+      }
+    );
   }
 
   /**
    * Get number of rows in the table
    */
   get numberOfRows() {
-    return this.table.childElementCount;
+    return this.tableBody.childElementCount;
   }
 
   /**
@@ -628,7 +918,7 @@ export default class Table {
    */
   get numberOfColumns() {
     if (this.numberOfRows) {
-      return this.table.querySelectorAll(`.${CSS.row}:first-child .${CSS.cell}`).length;
+      return this.tableBody.querySelectorAll(`.${CSS.row}:first-child .${CSS.cell}`).length;
     }
 
     return 0;
@@ -653,17 +943,82 @@ export default class Table {
   }
 
   /**
+   * Start selecting cells (e.g., for multi-cell operations)
+   */
+  onMouseDownListener() {
+    this.isSelectingCells = true;
+
+    if (!this.startSelectedColumn) {
+      this.startSelectedColumn = this.hoveredColumn;
+    }
+    if (!this.startSelectedRow) {
+      this.startSelectedRow = this.hoveredRow;
+    }
+  }
+
+  /**
+   * Stop selecting cells
+   */
+  onMouseUpListener() {
+    this.isSelectingCells = false;
+    this.startSelectedColumn = null;
+    this.startSelectedRow = null;
+  }
+
+  /**
+   * Add the selected class to a cell if selection mode is active
+   * 
+   * @param {HTMLElement} element - The cell element to mark as selected
+   */
+  addSelectedCellStyle(startRow, startColumn, endRow, endColumn) {
+    this.removeSelectedCellStyle();
+    if (!startRow || !startColumn || !endRow || !endColumn) {
+      return;
+    }
+
+    const minRow = Math.min(startRow, endRow);
+    const maxRow = Math.max(startRow, endRow);
+    const minColumn = Math.min(startColumn, endColumn);
+    const maxColumn = Math.max(startColumn, endColumn);
+    for (let row = minRow; row <= maxRow; row++) {
+      for (let column = minColumn; column <= maxColumn; column++) {
+        const cell = this.getCell(row, column);
+        if (!cell) { continue }
+        cell.closest('th, td')?.classList.add(CSS.cellSelectedMerge);
+      }
+    }
+  }
+
+  /**
+   * Remove the selected class from all cells, but only if selection mode is not active
+   */
+  removeSelectedCellStyle() {
+    this.selectedCells = [];
+    this.tableBody?.querySelectorAll(`.${CSS.cellSelectedMerge}`).forEach(el => el.classList.remove(CSS.cellSelectedMerge));
+  }
+
+  /**
    * Recalculate position of toolbox icons
    *
    * @param {Event} event - mouse move event
    */
   onMouseMoveInTable(event) {
-    const { row, column } = this.getHoveredCell(event);
+    const hoveredCell = event.target.closest('th, td');
+    if (!hoveredCell) return;
+
+    const hoveredRow = hoveredCell.closest('tr');
+    if (!hoveredRow) return;
+
+    const column = hoveredCell.cellIndex + 1;
+    const row = hoveredRow.sectionRowIndex + 1;
 
     this.hoveredColumn = column;
     this.hoveredRow = row;
 
     this.updateToolboxesPosition();
+    if (this.isSelectingCells) {
+      this.addSelectedCellStyle(this.startSelectedRow, this.startSelectedColumn, row, column);
+    }
   }
 
   /**
@@ -706,7 +1061,7 @@ export default class Table {
     const row = this.getRowByCell(cell);
 
     this.focusedCell = {
-      row: Array.from(this.table.querySelectorAll(`.${CSS.row}`)).indexOf(row) + 1,
+      row: Array.from(this.tableBody.querySelectorAll(`.${CSS.row}`)).indexOf(row) + 1,
       column: Array.from(row.querySelectorAll(`.${CSS.cell}`)).indexOf(cell) + 1
     };
   }
@@ -750,7 +1105,7 @@ export default class Table {
    * @returns {void}
    */
   focusCell() {
-    this.focusedCellElem.focus();
+    this.focusedCellElem?.focus();
   }
 
   /**
@@ -772,7 +1127,7 @@ export default class Table {
    */
   updateToolboxesPosition(row = this.hoveredRow, column = this.hoveredColumn) {
     if (!this.isColumnMenuShowing) {
-      if (column > 0 && column <= this.numberOfColumns) { // not sure this statement is needed. Maybe it should be fixed in getHoveredCell()
+      if (column > 0 && column <= this.numberOfColumns) {
         this.toolboxColumn.show(() => {
           return {
             left: `calc((100% - var(--cell-size)) / (${this.numberOfColumns} * 2) * (1 + (${column} - 1) * 2))`
@@ -782,10 +1137,10 @@ export default class Table {
     }
 
     if (!this.isRowMenuShowing) {
-      if (row > 0 && row <= this.numberOfRows) { // not sure this statement is needed. Maybe it should be fixed in getHoveredCell()
+      if (row > 0 && row <= this.numberOfRows) {
         this.toolboxRow.show(() => {
           const hoveredRowElement = this.getRow(row);
-          const { fromTopBorder } = $.getRelativeCoordsOfTwoElems(this.table, hoveredRowElement);
+          const { fromTopBorder } = $.getRelativeCoordsOfTwoElems(this.tableBody, hoveredRowElement);
           const { height } = hoveredRowElement.getBoundingClientRect();
 
           return {
@@ -796,46 +1151,35 @@ export default class Table {
     }
   }
 
-  /**
-   * Makes the first row headings
-   *
-   * @param {boolean} withHeadings - use headings row or not
-   */
-  setHeadingsSetting(withHeadings) {
-    this.tunes.withHeadings = withHeadings;
+  convertTabelRowToTableHead() {
+    for (let cellIndex = 1; cellIndex <= this.numberOfColumns; cellIndex++) {
+      let tdCell = this.getCell(1, cellIndex);
+      if (tdCell.tagName !== "TD") {
+        return;
+      }
 
-    if (withHeadings) {
-      this.table.classList.add(CSS.withHeadings);
-      this.addHeadingAttrToFirstRow();
-    } else {
-      this.table.classList.remove(CSS.withHeadings);
-      this.removeHeadingAttrFromFirstRow();
+      const thCell = document.createElement("th");
+      thCell.innerHTML = tdCell.innerHTML;
+      for (const attr of tdCell.attributes) {
+        thCell.setAttribute(attr.name, attr.value);
+      }
+      tdCell.parentNode.replaceChild(thCell, tdCell);
     }
   }
 
-  /**
-   * Adds an attribute for displaying the placeholder in the cell
-   */
-  addHeadingAttrToFirstRow() {
+  convertTabelHeadToTableRow() {
     for (let cellIndex = 1; cellIndex <= this.numberOfColumns; cellIndex++) {
-      let cell = this.getCell(1, cellIndex);
+      let thCell = this.getCell(1, cellIndex);
 
-      if (cell) {
-        cell.setAttribute('heading', this.api.i18n.t('Heading'));
+      if (thCell.tagName !== "TH") {
+        return;
       }
-    }
-  }
-
-  /**
-   * Removes an attribute for displaying the placeholder in the cell
-   */
-  removeHeadingAttrFromFirstRow() {
-    for (let cellIndex = 1; cellIndex <= this.numberOfColumns; cellIndex++) {
-      let cell = this.getCell(1, cellIndex);
-
-      if (cell) {
-        cell.removeAttribute('heading');
+      const tdCell = document.createElement("td");
+      tdCell.innerHTML = thCell.innerHTML;
+      for (const attr of thCell.attributes) {
+        tdCell.setAttribute(attr.name, attr.value);
       }
+      thCell.parentNode.replaceChild(tdCell, thCell);
     }
   }
 
@@ -861,7 +1205,7 @@ export default class Table {
       return;
     }
 
-    const row = this.table.querySelector(`.${CSS.rowSelected}`);
+    const row = this.tableBody.querySelector(`.${CSS.rowSelected}`);
 
     if (row) {
       row.classList.remove(CSS.rowSelected);
@@ -895,88 +1239,13 @@ export default class Table {
       return;
     }
 
-    let cells = this.table.querySelectorAll(`.${CSS.cellSelected}`);
+    let cells = this.tableBody.querySelectorAll(`.${CSS.cellSelected}`);
 
     Array.from(cells).forEach(column => {
       column.classList.remove(CSS.cellSelected);
     });
 
     this.selectedColumn = 0;
-  }
-
-  /**
-   * Calculates the row and column that the cursor is currently hovering over
-   * The search was optimized from O(n) to O (log n) via bin search to reduce the number of calculations
-   *
-   * @param {Event} event - mousemove event
-   * @returns hovered cell coordinates as an integer row and column
-   */
-  getHoveredCell(event) {
-    let hoveredRow = this.hoveredRow;
-    let hoveredColumn = this.hoveredColumn;
-    const { width, height, x, y } = $.getCursorPositionRelativeToElement(this.table, event);
-
-    // Looking for hovered column
-    if (x >= 0) {
-      hoveredColumn = this.binSearch(
-        this.numberOfColumns,
-        (mid) => this.getCell(1, mid),
-        ({ fromLeftBorder }) => x < fromLeftBorder,
-        ({ fromRightBorder }) => x > (width - fromRightBorder)
-      );
-    }
-
-    // Looking for hovered row
-    if (y >= 0) {
-      hoveredRow = this.binSearch(
-        this.numberOfRows,
-        (mid) => this.getCell(mid, 1),
-        ({ fromTopBorder }) => y < fromTopBorder,
-        ({ fromBottomBorder }) => y > (height - fromBottomBorder)
-      );
-    }
-
-    return {
-      row: hoveredRow || this.hoveredRow,
-      column: hoveredColumn || this.hoveredColumn
-    };
-  }
-
-  /**
-   * Looks for the index of the cell the mouse is hovering over.
-   * Cells can be represented as ordered intervals with left and
-   * right (upper and lower for rows) borders inside the table, if the mouse enters it, then this is our index
-   *
-   * @param {number} numberOfCells - upper bound of binary search
-   * @param {function} getCell - function to take the currently viewed cell
-   * @param {function} beforeTheLeftBorder - determines the cursor position, to the left of the cell or not
-   * @param {function} afterTheRightBorder - determines the cursor position, to the right of the cell or not
-   * @returns {number}
-   */
-  binSearch(numberOfCells, getCell, beforeTheLeftBorder, afterTheRightBorder) {
-    let leftBorder = 0;
-    let rightBorder = numberOfCells + 1;
-    let totalIterations = 0;
-    let mid;
-
-    while (leftBorder < rightBorder - 1 && totalIterations < 10) {
-      mid = Math.ceil((leftBorder + rightBorder) / 2);
-
-      const cell = getCell(mid);
-      const relativeCoords = $.getRelativeCoordsOfTwoElems(this.table, cell);
-
-      if (beforeTheLeftBorder(relativeCoords)) {
-        rightBorder = mid;
-      } else if (afterTheRightBorder(relativeCoords)) {
-        leftBorder = mid;
-      } else {
-        break;
-      }
-
-      totalIterations++;
-    }
-
-    return mid;
   }
 
   /**
@@ -988,18 +1257,299 @@ export default class Table {
     const data = [];
 
     for (let i = 1; i <= this.numberOfRows; i++) {
-      const row = this.table.querySelector(`.${CSS.row}:nth-child(${i})`);
+      const row = this.tableBody.querySelector(`.${CSS.row}:nth-child(${i})`);
+      const rowId = row.getAttribute('data-id') ?? $.generateRandomKey();
       const cells = Array.from(row.querySelectorAll(`.${CSS.cell}`));
-      const isEmptyRow = cells.every(cell => !cell.textContent.trim());
+      
+      data.push({
+        id: rowId,
+        content: cells.map(cell => {
+          if (cell.classList.contains(CSS.cellHidden)) {
+            return {
+              content: []
+            };
+          }
 
-      if (isEmptyRow) {
-        continue;
+          const cellData = {
+            id: cell.getAttribute('data-id') || $.generateRandomKey(),
+            content: this.extractParagraphData(cell),
+          }
+          if (cell.tagName === 'TH') {
+            cellData.heading = true;
+          }
+          if (typeof cell.rowSpan === 'number' && cell.rowSpan > 1) {
+            cellData.rowspan = cell.rowSpan;
+          }
+          if (typeof cell.colSpan === 'number' && cell.colSpan > 1) {
+            cellData.colspan = cell.colSpan; 
+          }
+          return cellData;
+        }).filter(cell => cell.content.length)
+      });
+    }
+    return data;
+  }
+
+  /**
+   * Extracts structured paragraph data from a given cell element.
+   *
+   * @param {HTMLElement} cell - A DOM element containing one or more <p> tags.
+   * @returns {Array<Object>} - An array of paragraph objects with the following structure:
+   *    [
+   *      {
+   *        id: string | null,        // value of the data-id attribute on the <p> tag
+   *        type: 'paragraph',        // fixed type identifier
+   *        data: { text: string }    // inner HTML content of the paragraph
+   *      }
+   *    ]
+   */
+  extractParagraphData(cell) {
+    const paragraphs = cell.querySelectorAll('p');
+
+    return Array.from(paragraphs).map(paragraph => ({
+      id: paragraph.getAttribute('data-id'),
+      type: 'paragraph',
+      data: { text: paragraph.innerHTML }
+    }));
+  }
+
+  /**
+   * Merge all currently selected table cells into a single cell
+   *
+   * The merged cell will:
+   *  - contain the combined content of all selected cells (joined with <br>)
+   *  - expand its rowSpan and colSpan to cover the entire selected rectangle
+   *  - hide all other cells that were part of the merge
+   *
+   * Selection must form a contiguous rectangular block; otherwise, a notification
+   * will be shown and the merge will be cancelled
+   */
+  mergeCells() {
+    const selectedCells = Array.from(this.tableBody.querySelectorAll(`.${CSS.cellSelectedMerge}`));
+    if (selectedCells.length < 2) return;
+
+    const rows = this.numberOfRows;
+    const cols = this.numberOfColumns;
+
+    const matrix = Array.from({ length: rows }, () => new Array(cols).fill(null));
+
+    // Fill the matrix with table cells, considering rowSpan and colSpan and skipping cells hidden by previous merges
+    //
+    // The matrix represents the visible structure of the table. Each entry points
+    // to the corresponding <td>/<th> element, taking into account rowspan and colspan
+    //
+    // Example 1: simple table without spans
+    // <table>
+    //   <tr><td>A</td><td>B</td><td>C</td></tr>
+    //   <tr><td>D</td><td>E</td><td>F</td></tr>
+    // </table>
+    //
+    // matrix = [
+    //   [ A, B, C ],
+    //   [ D, E, F ]
+    // ]
+    // --------------------------------------------------------
+    // Example 2: with colSpan
+    // <table>
+    //   <tr><td colspan="2">A</td><td>B</td></tr>
+    //   <tr><td>C</td><td>D</td><td>E</td></tr>
+    // </table>
+    //
+    // matrix = [
+    //   [ A, A, B ],   // A spans 2 columns
+    //   [ C, D, E ]
+    // ]
+    // --------------------------------------------------------
+    // Example 3: with rowSpan
+    // <table>
+    //   <tr><td rowspan="2">A</td><td>B</td></tr>
+    //   <tr><td>C</td></tr>
+    // </table>
+    //
+    // matrix = [
+    //   [ A, B ],
+    //   [ A, C ]       // A spans 2 rows
+    // ]
+    // --------------------------------------------------------
+    // Example 4: with both rowSpan and colSpan
+    // <table>
+    //   <tr><td rowspan="2" colspan="2">A</td><td>B</td></tr>
+    //   <tr><td>C</td></tr>
+    // </table>
+    //
+    // matrix = [
+    //   [ A, A, B ],
+    //   [ A, A, C ]
+    // ]
+    for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
+      let currentColIndex = 0;
+      const rowElement = this.getRow(rowIndex + 1);
+
+      for (const cellElement of rowElement.querySelectorAll(`.${CSS.cell}`)) {
+        if (!cellElement.classList.contains(CSS.cellHidden)) {
+
+          // find next free column
+          const nextFreeColIndex = matrix[rowIndex].findIndex(
+            (cell, index) => index >= currentColIndex && !cell
+          );
+          currentColIndex = nextFreeColIndex >= 0 ? nextFreeColIndex : matrix[rowIndex].length;
+
+          const rowSpan = cellElement.rowSpan ?? 1;
+          const colSpan = cellElement.colSpan ?? 1;
+
+          // fill all positions in matrix that this cell covers
+          for (let spanRow = 0; spanRow < rowSpan; spanRow++) {
+            for (let spanCol = 0; spanCol < colSpan; spanCol++) {
+              const targetRow = rowIndex + spanRow;
+              const targetCol = currentColIndex + spanCol;
+              if (targetRow < rows && targetCol < cols) {
+                matrix[targetRow][targetCol] = cellElement;
+              }
+            }
+          }
+
+          currentColIndex += colSpan;
+        }
       }
-
-      data.push(cells.map(cell => cell.innerHTML));
     }
 
-    return data;
+    // Determine positions of the selected cells
+    // Example table matrix (after filling with rowSpan/colSpan):
+    // [
+    //   [ A, B, C ],
+    //   [ D, E, F ],
+    //   [ G, H, I ]
+    // ]
+    //
+    // Suppose the user selected cells B, E, and H:
+    //   +----+----+----+
+    //   | A  | X  | C  |
+    //   +----+----+----+
+    //   | D  | X  | F  |
+    //   +----+----+----+
+    //   | G  | X  | I  |
+    //   +----+----+----+
+    //
+    // The loop collects their coordinates in the matrix:
+    // selectedPositions = [
+    //   { row: 0, col: 1 },   // B
+    //   { row: 1, col: 1 },   // E
+    //   { row: 2, col: 1 }    // H
+    // ]
+    const selectedSet = new Set(selectedCells);
+    const selectedPositions = [];
+    for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
+      for (let colIndex = 0; colIndex < cols; colIndex++) {
+        if (selectedSet.has(matrix[rowIndex][colIndex])) {
+          selectedPositions.push({ row: rowIndex, col: colIndex });
+        }
+      }
+    }
+
+    // Calculate bounding rectangle of selected cells
+    const minRow = Math.min(...selectedPositions.map(pos => pos.row));
+    const maxRow = Math.max(...selectedPositions.map(pos => pos.row));
+    const minCol = Math.min(...selectedPositions.map(pos => pos.col));
+    const maxCol = Math.max(...selectedPositions.map(pos => pos.col));
+
+    // Validate: check if all cells inside the rectangle are selected or already merged
+    //
+    // Example 1: valid selection (contiguous rectangle)
+    // +----+----+----+
+    // | X  | X  |    |
+    // +----+----+----+
+    // | X  | X  |    |
+    // +----+----+----+
+    //
+    // → All cells in the 2x2 rectangle are selected
+    // → Validation passes
+    //
+    // Example 2: invalid selection (gap inside rectangle)
+    // +----+----+----+
+    // | X  |    |    |
+    // +----+----+----+
+    // | X  | X  |    |
+    // +----+----+----+
+    //
+    // Bounding rectangle covers a 2x2 area, but top-right cell is missing
+    // → Validation fails
+    //
+    // Example 3: valid selection with previously merged cells
+    // (assume top-left 2x2 block was merged already, hidden cells have 'tc-cell--hidden')
+    // +-------------------+----+
+    // |          A        | B  |
+    // |      (merged)     |    |
+    // +-------------------+----+
+    // |  tc-cell--hidden  | C  |
+    // +----+----+--------------+
+    //
+    // User selects A and C → rectangle includes hidden cells, but they are ignored
+    // → Validation passes
+    let invalidSelection = false;
+    for (let rowIndex = minRow; rowIndex <= maxRow; rowIndex++) {
+      for (let colIndex = minCol; colIndex <= maxCol; colIndex++) {
+        const cell = matrix[rowIndex][colIndex];
+        if (!cell || (!selectedSet.has(cell) && !cell.classList.contains(CSS.cellHidden))) {
+          invalidSelection = true;
+          break;
+        }
+      }
+      if (invalidSelection) {
+        break;
+      }
+    }
+    if (invalidSelection) return
+
+    // Merge the content of all selected cells
+    const mergedContent = Array.from(selectedSet)
+      .flatMap(cellElement => 
+        Array.from(cellElement.querySelectorAll('p')).map(p => p.innerHTML.trim()
+      )
+    );
+    if (!mergedContent.length) return;
+
+    // Define the master cell (top-left) and expand it to cover the rectangle
+    //
+    // Example: merging a 2x2 block
+    //
+    // Before merge:
+    // +----+----+----+
+    // | A  | B  | C  |
+    // +----+----+----+
+    // | D  | E  | F  |
+    // +----+----+----+
+    //
+    // Selected cells: B, C, E, F
+    //
+    // After merge:
+    // +----+-----------------+
+    // | A  |      BCEF       |   <-- masterCell now spans 2x2, contains combined content
+    // +----+                 |
+    // | D  | tc-cell--hidden |   <-- other cells cleared
+    // +----+-----------------+
+    const masterCell = matrix[minRow][minCol];
+    if (!masterCell) {
+      return;
+    }
+
+    const newParagraph = this.createParagraph();
+    newParagraph.innerHTML = mergedContent.filter((content) => !!content.trim()).join('<br>');
+    masterCell.innerHTML = newParagraph.outerHTML;
+    masterCell.rowSpan = maxRow - minRow + 1;
+    masterCell.colSpan = maxCol - minCol + 1;
+    masterCell.classList.remove(CSS.cellHidden);
+
+    // Clear and hide the other merged cells
+    selectedSet.forEach(cellElement => {
+      if (cellElement !== masterCell) {
+        cellElement.innerHTML = '';
+        cellElement.classList.add(CSS.cellHidden);
+        cellElement.rowSpan = 1;
+        cellElement.colSpan = 1;
+      }
+    });
+
+    this.removeSelectedCellStyle();
   }
 
   /**
@@ -1007,5 +1557,6 @@ export default class Table {
    */
   destroy() {
     document.removeEventListener('click', this.documentClicked);
+    document.removeEventListener('dblclick', this.doubleDocumentClicked);
   }
 }

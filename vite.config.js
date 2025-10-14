@@ -12,7 +12,12 @@ export default {
     lib: {
       entry: path.resolve(__dirname, "src", "index.js"),
       name: "Table",
-      fileName: "table",
+      fileName: (format) => {
+        if (format === "es") return "table.esm.js";
+        if (format === "umd") return "table.umd.js";
+        return `table.${format}.js`;
+      },
+      formats: ["es", "umd"],
     },
   },
   define: {

@@ -1,7 +1,7 @@
 import Table from './table';
 import * as $ from './utils/dom';
 
-import { IconTable, IconTableWithHeadings, IconTableWithoutHeadings, IconStretch, IconCollapse } from '@codexteam/icons';
+import { IconTable } from '@codexteam/icons';
 /**
  * @typedef {object} TableData - configuration that the user can set for the table
  * @property {number} rows - number of rows in the table
@@ -16,7 +16,6 @@ import { IconTable, IconTableWithHeadings, IconTableWithoutHeadings, IconStretch
  */
 /**
  * @typedef {object} TableConfig - object with the data transferred to form a table
- * @property {boolean} withHeading - setting to use cells of the first row as headings
  * @property {string[][]} content - two-dimensional array which contains table content
  */
 /**
@@ -64,8 +63,6 @@ export default class TableBlock {
     this.readOnly = readOnly;
     this.config = config;
     this.data = {
-      withHeadings: this.getConfig('withHeadings', false, data),
-      stretched: this.getConfig('stretched', false, data),
       content: data && data.content ? data.content : []
     };
     this.table = null;
@@ -99,8 +96,6 @@ export default class TableBlock {
     this.container = $.make('div', this.api.styles.block);
     this.container.appendChild(this.table.getWrapper());
 
-    this.table.setHeadingsSetting(this.data.withHeadings);
-
     return this.container;
   }
 
@@ -110,38 +105,7 @@ export default class TableBlock {
    * @returns {Array}
    */
   renderSettings() {
-    return [
-      {
-        label: this.api.i18n.t('With headings'),
-        icon: IconTableWithHeadings,
-        isActive: this.data.withHeadings,
-        closeOnActivate: true,
-        toggle: true,
-        onActivate: () => {
-          this.data.withHeadings = true;
-          this.table.setHeadingsSetting(this.data.withHeadings);
-        }
-      }, {
-        label: this.api.i18n.t('Without headings'),
-        icon: IconTableWithoutHeadings,
-        isActive: !this.data.withHeadings,
-        closeOnActivate: true,
-        toggle: true,
-        onActivate: () => {
-          this.data.withHeadings = false;
-          this.table.setHeadingsSetting(this.data.withHeadings);
-        }
-      }, {
-        label: this.data.stretched ? this.api.i18n.t('Collapse') : this.api.i18n.t('Stretch'),
-        icon: this.data.stretched ? IconCollapse : IconStretch,
-        closeOnActivate: true,
-        toggle: true,
-        onActivate: () => {
-          this.data.stretched = !this.data.stretched;
-          this.block.stretched = this.data.stretched;
-        }
-      }
-    ];
+    return [];
   }
   /**
    * Extract table data from the view
@@ -151,13 +115,9 @@ export default class TableBlock {
   save() {
     const tableContent = this.table.getData();
 
-    const result = {
-      withHeadings: this.data.withHeadings,
-      stretched: this.data.stretched,
+    return {
       content: tableContent
-    };
-
-    return result;
+    }
   }
 
   /**
@@ -204,9 +164,6 @@ export default class TableBlock {
   onPaste(event) {
     const table = event.detail.data;
 
-    /** Check if the first row is a header */
-    const firstRowHeading = table.querySelector(':scope > thead, tr:first-of-type th');
-
     /** Get all rows from the table */
     const rows = Array.from(table.querySelectorAll('tr'));
 
@@ -220,10 +177,7 @@ export default class TableBlock {
     });
 
     /** Update Tool's data */
-    this.data = {
-      withHeadings: firstRowHeading !== null,
-      content
-    };
+    this.data = { content };
 
     /** Update table block */
     if (this.table.wrapper) {

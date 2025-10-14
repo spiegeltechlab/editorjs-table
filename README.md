@@ -64,7 +64,6 @@ var editor = EditorJS({
 | `maxRows`          | `number` | maximum number of rows. `5` by params |
 | `maxCols`          | `number` | maximum number of columns. `5` by params |
 | `withHeadings`     | `boolean` | toggle table headings. `false` by default |
-| `stretched`        | `boolean` | whether the table is stretched to fill the full width of the container |
 
 ## Output data
 
@@ -73,16 +72,102 @@ This Tool returns `data` in the following format
 | Field          | Type         | Description           |
 | -------------- | ------------ | ----------------------------------------- |
 | `withHeadings` | `boolean`    | Uses the first line as headings |
-| `stretched`    | `boolean`    | whether the table is stretched to fill the full width of the container |
-| `content`      | `string[][]` | two-dimensional array with table contents |
+| `content`      | `object[][]` | two-dimensional array with table contents |
 
 ```json
 {
   "type" : "table",
   "data" : {
     "withHeadings": true,
-    "stretched": false,
-    "content" : [ [ "Kine", "Pigs", "Chicken" ], [ "1 pcs", "3 pcs", "12 pcs" ], [ "100$", "200$", "150$" ] ]
+    "content": [
+      {
+        "id": "xhznwdtyqap",
+        "content": [
+          {
+            "id": "denmtt3cnct",
+            "content": [
+              {
+                "id": "o842qp1uh7s",
+                "type": "paragraph",
+                "data": { "text": "Header <b>A</b>." }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "id": "q6wg2x4b0e",
+            "content": [
+              {
+                "id": "akxc6gensh6",
+                "type": "paragraph",
+                "data": { "text": "Header <i>B</i>." }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "id": "l3ranefcrx",
+            "content": [
+              {
+                "id": "cuq74ngp2re",
+                "type": "paragraph",
+                "data": { "text": "Header <u>C</u>." }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          }
+        ]
+      },
+      {
+        "id": "8azjvdjdbw2",
+        "content": [
+          {
+            "id": "3frajhsj2te",
+            "content": [
+              {
+                "id": "0dwyyexxpdqa",
+                "type": "paragraph",
+                "data": { "text": "A#1" }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "id": "qg0zg0h3kho",
+            "content": [
+              {
+                "id": "wc9lzltsdkp",
+                "type": "paragraph",
+                "data": { "text": "B#1" }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 1
+          },
+          {
+            "id": "rsixknd6v",
+            "content": [
+              {
+                "id": "u7f6r5d3t7",
+                "type": "paragraph",
+                "data": { "text": "merged (C#1)" }
+              },
+              {
+                "id": "nd12o931je",
+                "type": "paragraph",
+                "data": { "text": "merged (C#2)" }
+              }
+            ],
+            "colspan": 1,
+            "rowspan": 2
+          }
+        ]
+      }
+    ]
   }
 }
 ```
